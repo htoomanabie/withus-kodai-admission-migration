@@ -1,0 +1,17 @@
+{
+  "name": "withus-kodai-csv",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "withus-kodai-student-migration.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "lodash": "^4.17.21",
+    "papaparse": "^5.5.2"
+  }
+}
