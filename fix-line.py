@@ -13,8 +13,13 @@ def concat_phase1_lines(input_file='combined_student_data.csv', output_file=None
         while i < len(lines):
             current_line = lines[i].rstrip('\n')
             
-            # Keep concatenating lines until we find a line ending with "phase1"
-            while i + 1 < len(lines) and not current_line.strip().endswith(',phase1'):
+            # Keep concatenating lines until we find a line ending with either "phase1", ",phase1", "\"phase1\"" or ",\"phase1\""
+            while i + 1 < len(lines) and not (
+                current_line.strip().endswith('phase1') or 
+                current_line.strip().endswith(',phase1') or
+                current_line.strip().endswith('"phase1"') or
+                current_line.strip().endswith(',"phase1"')
+            ):
                 i += 1
                 # Replace newline with space when concatenating
                 current_line += ' ' + lines[i].rstrip('\n')
@@ -54,8 +59,8 @@ def concat_phase1_lines_with_error_handling(input_file='combined_student_data.cs
         while i < len(lines):
             current_line = lines[i].rstrip('\n')
             
-            # Keep concatenating lines until we find a line ending with "phase1"
-            while i + 1 < len(lines) and not current_line.strip().endswith(',phase1'):
+            # Keep concatenating lines until we find a line ending with either "phase1" or ",phase1"
+            while i + 1 < len(lines) and not (current_line.strip().endswith('phase1') or current_line.strip().endswith(',phase1')):
                 i += 1
                 # Replace newline with space when concatenating
                 current_line += ' ' + lines[i].rstrip('\n')

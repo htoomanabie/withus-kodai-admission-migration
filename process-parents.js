@@ -21,7 +21,8 @@ const OUTPUT_COLUMN_MAPPING = {
     'address2': 'Street 1',
     'address3': 'Street 2',
     'combined_info': 'Description',
-    'gender': 'Gender Identity'
+    'gender': 'Gender Identity',
+    'tag': 'Tag'
 };
 
 // Define the mappings
@@ -95,7 +96,8 @@ const REQUIRED_COLUMNS = [
     'employment',
     'employment_tel',
     'comment',
-    'gender'
+    'gender',
+    'tag'
 ];
 
 // Function to remove dashes from a string
@@ -131,7 +133,8 @@ function filterColumns(record) {
     const modifiedRecord = {
         ...record,
         combined_info: combinedInfo,
-        gender: '不明'
+        gender: '不明',
+        tag: record['parent_id'] % 2 === 0 ? 'phase1' : ',phase1'  // Alternate between phase1 and ,phase1 based on parent_id
     };
     
     REQUIRED_COLUMNS.forEach(column => {
