@@ -326,7 +326,7 @@ async function processStudentData() {
         
         // Initialize output files with headers
         const outputFilename = 'combined_student_data_direct_merge.csv';
-        const incompleteFilename = 'student_incomplete.csv';
+        const incompleteFilename = 'combined_student_incomplete.csv';
         
         // Add tag column to the headers if needed
         const headersWithTag = ADD_TAG_COLUMN ? [...REQUIRED_COLUMNS, 'tag'] : REQUIRED_COLUMNS;

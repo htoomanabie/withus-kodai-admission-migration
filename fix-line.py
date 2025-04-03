@@ -1,7 +1,7 @@
 # Configuration constant for phase check
 PHASE_CHECK = 'phase11'
 
-def concat_phase1_lines(input_file='combined_student_data.csv', output_file=None):
+def concat_phase1_lines(input_file='combined_student_data_direct_merge.csv', output_file=None):
     if output_file is None:
         output_file = input_file.replace('.csv', '_fixed.csv')
     
@@ -47,7 +47,7 @@ def concat_phase1_lines(input_file='combined_student_data.csv', output_file=None
         print(f"Error processing file: {e}")
         return False
 
-def concat_phase1_lines_with_error_handling(input_file='combined_student_data.csv', output_file=None):
+def concat_phase1_lines_with_error_handling(input_file='combined_student_data_direct_merge.csv', output_file=None):
     if output_file is None:
         output_file = input_file.replace('.csv', '_fixed.csv')
     
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     import sys
     
     # Allow optional input file as command-line argument
-    input_file = sys.argv[1] if len(sys.argv) > 1 else 'combined_student_data.csv'
+    input_file = sys.argv[1] if len(sys.argv) > 1 else 'combined_student_data_direct_merge.csv'
     output_file = sys.argv[2] if len(sys.argv) > 2 else None
     
     success = concat_phase1_lines(input_file, output_file)

@@ -3,7 +3,7 @@ import Papa from 'papaparse';
 import path from 'path';
 
 // Configuration
-const DEFAULT_INPUT_FILE = 'combined_student_data_fixed_masked.csv';
+const DEFAULT_INPUT_FILE = 'combined_student_data_direct_merge_fixed_masked.csv';
 const DEFAULT_OUTPUT_PREFIX = `student_data_part_${new Date().toLocaleString('en-US', { 
   year: 'numeric', 
   month: '2-digit', 
