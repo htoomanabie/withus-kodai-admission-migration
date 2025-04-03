@@ -16,7 +16,7 @@ import {
     transformBranchId,
     getOutputColumnNames,
     COLUMN_MAPPINGS
-} from './mappings.js';
+} from './student-mappings.js';
 
 const CHUNK_SIZE = 5000; // Smaller chunk size to reduce memory pressure
 
@@ -181,7 +181,7 @@ function filterColumns(record) {
             value = transformGrade(value);
             // NEW: Set empty grade values to '-'
             if (!value || (typeof value === 'string' && value.trim() === '')) {
-                value = 'a1AHy000006uXmfMAE';
+                value = '-';
             }
         } else if (column === 'dm_sendable') {
             value = transformDmSendable(value);

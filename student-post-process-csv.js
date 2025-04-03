@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import Papa from 'papaparse';
 import _ from 'lodash';
-import { transformBranchId } from './mappings.js'; // Import the transformation function
+import { transformBranchId } from './student-mappings.js'; // Import the transformation function
 
 // Column names in the combined_student_data.csv
 const EXTERNAL_USER_ID_COL = 'External User Id';

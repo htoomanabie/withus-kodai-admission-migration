@@ -88,7 +88,8 @@ export const PREFECTURE_MAPPING = {
     '45': '宮崎県',
     '46': '鹿児島県',
     '47': '沖縄県',
-    '99': 'その他'
+    // '99': 'その他'
+    '99': ''
 };
 
 export const DM_SENDABLE_MAPPING = {

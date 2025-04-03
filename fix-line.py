@@ -1,3 +1,6 @@
+# Configuration constant for phase check
+PHASE_CHECK = 'phase11'
+
 def concat_phase1_lines(input_file='combined_student_data.csv', output_file=None):
     if output_file is None:
         output_file = input_file.replace('.csv', '_fixed.csv')
@@ -13,12 +16,12 @@ def concat_phase1_lines(input_file='combined_student_data.csv', output_file=None
         while i < len(lines):
             current_line = lines[i].rstrip('\n')
             
-            # Keep concatenating lines until we find a line ending with either "phase1", ",phase1", "\"phase1\"" or ",\"phase1\""
+            # Keep concatenating lines until we find a line ending with the configured phase
             while i + 1 < len(lines) and not (
-                current_line.strip().endswith('phase1') or 
-                current_line.strip().endswith(',phase1') or
-                current_line.strip().endswith('"phase1"') or
-                current_line.strip().endswith(',"phase1"')
+                current_line.strip().endswith(PHASE_CHECK) or 
+                current_line.strip().endswith(f',{PHASE_CHECK}') or
+                current_line.strip().endswith(f'"{PHASE_CHECK}"') or
+                current_line.strip().endswith(f',"{PHASE_CHECK}"')
             ):
                 i += 1
                 # Replace newline with space when concatenating
@@ -59,8 +62,11 @@ def concat_phase1_lines_with_error_handling(input_file='combined_student_data.cs
         while i < len(lines):
             current_line = lines[i].rstrip('\n')
             
-            # Keep concatenating lines until we find a line ending with either "phase1" or ",phase1"
-            while i + 1 < len(lines) and not (current_line.strip().endswith('phase1') or current_line.strip().endswith(',phase1')):
+            # Keep concatenating lines until we find a line ending with the configured phase
+            while i + 1 < len(lines) and not (
+                current_line.strip().endswith(PHASE_CHECK) or 
+                current_line.strip().endswith(f',{PHASE_CHECK}')
+            ):
                 i += 1
                 # Replace newline with space when concatenating
                 current_line += ' ' + lines[i].rstrip('\n')

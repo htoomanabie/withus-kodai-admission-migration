@@ -3,8 +3,15 @@ import Papa from 'papaparse';
 import path from 'path';
 
 // Configuration
-const DEFAULT_INPUT_FILE = 'combined_student_data.csv';
-const DEFAULT_OUTPUT_PREFIX = 'student_data_part';
+const DEFAULT_INPUT_FILE = 'combined_student_data_fixed_masked.csv';
+const DEFAULT_OUTPUT_PREFIX = `student_data_part_${new Date().toLocaleString('en-US', { 
+  year: 'numeric', 
+  month: '2-digit', 
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
+}).replace(/[/:]/g, '-').replace(/,/g, '')}`;
 const DEFAULT_ROWS_PER_FILE = 50000;
 
 /**

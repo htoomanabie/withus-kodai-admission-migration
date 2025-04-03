@@ -4,8 +4,8 @@ import Papa from 'papaparse';
 import _ from 'lodash';
 
 // Constants
-const DEFAULT_INPUT_FILE = 'student-test.csv';
-const DEFAULT_OUTPUT_FILE = 'student-test-masked.csv';
+const DEFAULT_INPUT_FILE = 'combined_student_data_fixed.csv';
+const DEFAULT_OUTPUT_FILE = 'combined_student_data_fixed_masked.csv';
 const SOURCE_FOLDER = 'split_files';
 const TARGET_FOLDER = 'mask_files';
 const PLACEHOLDER_DOMAIN = 'withusmanabie.com';
