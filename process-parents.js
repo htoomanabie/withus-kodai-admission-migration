@@ -1,9 +1,11 @@
 import { promises as fs } from 'fs';
 import Papa from 'papaparse';
 import _ from 'lodash';
+import { fixNextLine } from './fix-line.js';
+import { maskData } from './mask-data.js';
 
 const CHUNK_SIZE = 5000; // Smaller chunk size to reduce memory pressure
-
+const TAG_VALUE = "phase11"; // Configurable tag value - can be changed or removed in final migration
 // Define the column name mappings for the output
 const OUTPUT_COLUMN_MAPPING = {
     'parent_id': 'External User Id',
@@ -134,7 +136,7 @@ function filterColumns(record) {
         ...record,
         combined_info: combinedInfo,
         gender: '不明',
-        tag: record['parent_id'] % 2 === 0 ? 'phase1' : ',phase1'  // Alternate between phase1 and ,phase1 based on parent_id
+        tag: TAG_VALUE // Alternate between phase1 and ,phase1 based on parent_id
     };
     
     REQUIRED_COLUMNS.forEach(column => {
@@ -148,9 +150,9 @@ function filterColumns(record) {
             value = removeDashes(value);
         } else if (column === 'parent_id') {
             // Add 'p' prefix to parent_id
-            if (value !== null && value !== undefined && value !== '') {
-                value = 'p' + value;
-            }
+            // if (value !== null && value !== undefined && value !== '') {
+            //     value = 'p' + value;
+            // }
         }
         
         filteredRecord[column] = value;
@@ -253,7 +255,7 @@ async function processParentData(parentData) {
     }
 }
 
-async function processParentFile() {
+async function processParentFile(filename) {
     try {
         console.log('Starting parent data processing...');
         const initialMemoryUsage = process.memoryUsage();
@@ -261,7 +263,7 @@ async function processParentFile() {
 
         // Step 1: Read parent CSV file
         console.log('\n1. Reading parent.csv...');
-        const parentData = await readAndParseCSV('parent.csv');
+        const parentData = await readAndParseCSV(filename);
         console.log(`   ✓ Found ${parentData.data.length} parent records`);
 
         // Step 2: Process and transform the data
@@ -334,10 +336,44 @@ async function main() {
     const startTime = Date.now();
     
     try {
-        const outputFilename = await processParentFile();
+        // Parse command line arguments
+        const args = process.argv.slice(2);
+        const shouldMask = args.includes('--mask');
         
-        // Add this line to rename columns at the end of processing
+        // Remove the --mask flag from args to get the input file
+        const inputFileArg = args.filter(arg => arg !== '--mask')[0];
+        const inputFile = inputFileArg || 'parent.csv';
+        
+        console.log(`Using input file: ${inputFile}`);
+        console.log(`Masking enabled: ${shouldMask}`);
+        
+        // Step 1: Process parent data
+        const outputFilename = await processParentFile(inputFile);
+        
+        // Step 2: Rename columns
         await renameColumnsInFinalOutput(outputFilename);
+        
+        // Step 3: Run fix-line.js
+        console.log('\nRunning fix-line.js to process the final output...');
+        const fixedFilename = fixNextLine(outputFilename);
+        if (!fixedFilename) {
+            throw new Error('Failed to process file with fix-line.js');
+        }
+
+        // Step 4: Run masking as the last step if flag is present
+        if (shouldMask) {
+            console.log('\nRunning mask-data.js to mask sensitive information...');
+            const result = await maskData(fixedFilename);
+            if (!result.success) {
+                throw new Error(`Failed to mask data: ${result.error}`);
+            }
+            console.log(`\n📊 Masking summary:`);
+            console.log(`- Total records processed: ${result.totalRecords}`);
+            console.log(`- Columns masked: ${result.maskedColumns.join(', ')}`);
+            console.log(`- Output saved to: ${result.outputFile}`);
+        } else {
+            console.log('\nSkipping data masking (use --mask flag to enable)');
+        }
         
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
         console.log(`\nTotal execution time: ${duration} seconds`);

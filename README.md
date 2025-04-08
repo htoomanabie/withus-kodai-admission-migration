@@ -1,13 +1,8 @@
 # Steps to execute
 
-## Student Merge and Processed
-node student-direct-merge.js
+# --mask to toggle masking
+node process-student.js --mask
+node process-parents.js --mask
 
-## Fix lines with next line char for description column value
-python3 fix-line.py
-
-## Mask the file
-node student-mask.js
-
-## Split the file by number of rows
-node split-csv-files.js --rows 10000 
+# split the file using row count
+node split-csv-files.js processed_parent_data_fixed_masked.csv --rows 10000

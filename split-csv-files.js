@@ -4,14 +4,17 @@ import path from 'path';
 
 // Configuration
 const DEFAULT_INPUT_FILE = 'combined_student_data_direct_merge_fixed_masked.csv';
-const DEFAULT_OUTPUT_PREFIX = `student_data_part_${new Date().toLocaleString('en-US', { 
-  year: 'numeric', 
-  month: '2-digit', 
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false
-}).replace(/[/:]/g, '-').replace(/,/g, '')}`;
+const DEFAULT_OUTPUT_PREFIX = (inputFile = DEFAULT_INPUT_FILE) => {
+  const baseName = path.basename(inputFile, path.extname(inputFile));
+  return `${baseName}_${new Date().toLocaleString('en-US', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).replace(/[/:]/g, '-').replace(/,/g, '')}`;
+};
 const DEFAULT_ROWS_PER_FILE = 50000;
 
 /**
@@ -125,7 +128,6 @@ async function splitCsvFile(inputFilePath, outputPrefix, rowsPerFile, outputDir 
 function parseArgs() {
   const args = process.argv.slice(2);
   let inputFile = DEFAULT_INPUT_FILE;
-  let outputPrefix = DEFAULT_OUTPUT_PREFIX;
   let rowsPerFile = DEFAULT_ROWS_PER_FILE;
   let outputDir = '';
   
@@ -140,13 +142,14 @@ function parseArgs() {
       }
     } else if (arg === '--output-dir' && i + 1 < args.length) {
       outputDir = args[++i];
-    } else if (arg === '--prefix' && i + 1 < args.length) {
-      outputPrefix = args[++i];
     } else if (i === 0 && !arg.startsWith('--')) {
       // First non-flag argument is input file
       inputFile = arg;
     }
   }
+  
+  // Set outputPrefix based on the input file name
+  const outputPrefix = DEFAULT_OUTPUT_PREFIX(inputFile);
   
   return {
     inputFile,
