@@ -38,6 +38,15 @@ function generateRandomChars(length) {
   return result;
 }
 
+// Helper function to generate random integers
+function generateRandomIntegers(length) {
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += Math.floor(Math.random() * 10);
+  }
+  return result;
+}
+
 /**
  * Masks a name according to privacy rules
  * @param {string} name - The name to mask
@@ -130,7 +139,7 @@ function maskValue(value) {
     // For phone numbers and zip codes
     if (/^\d+$/.test(value)) {
         if (value.length <= 5) return value;
-        return value.slice(0, 3) + generateRandomChars(value.length - 5) + value.slice(-2);
+        return generateRandomIntegers(value.length);
     }
     
     // For email addresses

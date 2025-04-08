@@ -95,9 +95,7 @@ const REQUIRED_COLUMNS = [
     'address1',
     'address2',
     'address3',
-    'employment',
-    'employment_tel',
-    'comment',
+    'combined_info',
     'gender',
     'tag'
 ];
@@ -128,8 +126,8 @@ function filterColumns(record) {
         value !== null && value !== undefined && value !== ''
     );
     
-    // Join the non-empty values with line breaks
-    const combinedInfo = valuesToCombine.join('\n');
+    // Join the non-empty values with forward slashes
+    const combinedInfo = valuesToCombine.join('/');
     
     // Create a modified record with the combined field
     const modifiedRecord = {
@@ -222,7 +220,11 @@ async function processParentData(parentData) {
             const csv = processedChunk.map(record => 
                 REQUIRED_COLUMNS.map(column => {
                     const value = record[column];
-                    // Make sure line breaks are preserved in CSV output
+                    // Always quote the combined_info field and handle any existing quotes
+                    if (column === 'combined_info') {
+                        return `"${(value ?? '').replace(/"/g, '""')}"`;
+                    }
+                    // For other fields, quote if they contain special characters or are strings
                     return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : (value ?? '');
                 }).join(',')
             ).join('\n');
@@ -318,12 +320,21 @@ async function renameColumnsInFinalOutput(filename) {
         // Replace the header line with mapped column names
         const newHeaderLine = getOutputColumnNames().join(',');
         
-        // Create new content with updated header line
-        lines[0] = newHeaderLine;
-        const newContent = lines.join('\n');
+        // Process each data line to ensure Description is quoted
+        const processedLines = lines.map((line, index) => {
+            if (index === 0) return newHeaderLine; // Return new header line
+            
+            const columns = line.split(',');
+            const descriptionIndex = headers.indexOf('combined_info');
+            if (descriptionIndex !== -1 && columns[descriptionIndex]) {
+                // Ensure the Description field is properly quoted
+                columns[descriptionIndex] = `"${columns[descriptionIndex].replace(/"/g, '""')}"`;
+            }
+            return columns.join(',');
+        });
         
         // Write back to file
-        await fs.writeFile(filename, newContent, 'utf8');
+        await fs.writeFile(filename, processedLines.join('\n'), 'utf8');
         
         console.log(`   ✓ Successfully renamed columns in ${filename}`);
     } catch (error) {
