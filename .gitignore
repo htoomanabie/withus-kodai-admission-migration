@@ -3,3 +3,6 @@
 /mask_files
 /node_modules
 /split_files
+/processed
+/src/node_modules
+/src/package-lock.json
