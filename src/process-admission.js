@@ -587,6 +587,14 @@ function processRecord(record) {
         else if (column === 'webentry_ed_jhs_to') {
             value = formatYearMonthToDate(value);
         }
+        // Transform webentry_ed_hs1_from date format from YYYYMM to YYYY-MM-DD
+        else if (column === 'webentry_ed_hs1_from') {
+            value = formatYearMonthToDate(value);
+        }
+        // Transform webentry_ed_hs1_to date format from YYYYMM to YYYY-MM-DD
+        else if (column === 'webentry_ed_hs1_to') {
+            value = formatYearMonthToDate(value);
+        }
         // Clean text columns by removing line breaks and normalizing whitespace
         else if (column === 'webentry_hope' || column === 'remarks') {
             value = cleanText(value);
@@ -611,9 +619,9 @@ function processRecord(record) {
         // Add this new condition for parent_id
         else if (column === 'parent_id') {
             // Only add prefix if value exists and isn't empty
-            if (value) {
-                value = `p${value}`;
-            }
+            // if (value) {
+            //     value = `p${value}`;
+            // }
         }
         
         // Set fixed value for admission_judgement_status

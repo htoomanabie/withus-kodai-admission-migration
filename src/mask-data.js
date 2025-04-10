@@ -25,7 +25,24 @@ const MASKED_COLUMNS = [
     'Postal Code',
     'City',
     'Street 1',
-    'Street 2'
+    'Street 2',
+    'Web App Log in Id',
+    'Parent Email',
+    'Student PC address',
+    'Student First Name', 
+    'Student Last Name',
+    'Student First Name (Phonetic)',
+    'Student Last Name (Phonetic)',
+    'Parent Phone Number',
+    'Parent cell phone number',
+    'Inquirer\'s First Name',
+    'Inquirer\'s First Name (Phonetic)',
+    'Inquirer\'s Last Name',
+    'Inquirer\'s Last Name (Phonetic)',
+    'Parent Family Name',
+    'Parent First Name',
+    'Parent Family Name(katakana)',
+    'Parent First Name(katakana)'
 ];
 
 // Helper function to generate random characters

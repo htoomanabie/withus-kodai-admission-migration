@@ -21,7 +21,7 @@ const COLUMN_HEADER_MAPPING = {
     'name2': 'Last Name',
     'post': 'Role',
     'leaved': 'Active',
-    'class_name': 'Remarks',
+    'class_name': 'Description',
     'school_id': 'School'
 };
 
@@ -84,9 +84,17 @@ async function processFiles() {
                             
                             // Map column names to indices
                             data[0].forEach((header, index) => {
-                                // Clean header name
-                                const cleanHeader = header.replace(/^"|"$/g, '').trim().toLowerCase();
+                                // Enhanced header cleaning
+                                let cleanHeader = header;
+                                // Remove all types of quotes and whitespace
+                                cleanHeader = cleanHeader.replace(/^["']|["']$/g, '')  // Remove outer quotes
+                                    .replace(/\\"/g, '"')  // Handle escaped quotes
+                                    .trim()
+                                    .toLowerCase();
                                 columnIndices[cleanHeader] = index;
+                                
+                                // Log the header mapping for debugging
+                                console.log(`Mapped header: "${header}" -> "${cleanHeader}"`);
                             });
                             
                             return; // Skip processing header row
