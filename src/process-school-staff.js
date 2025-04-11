@@ -11,7 +11,8 @@ const REQUIRED_COLUMNS = [
     'leaved',
     'class_name',
     'school_id',
-    'contact_person_id'
+    'contact_person_id',
+    'RecordTypeId'
 ];
 
 // Define column header mapping for human-readable output
@@ -22,7 +23,8 @@ const COLUMN_HEADER_MAPPING = {
     'post': 'Role',
     'leaved': 'Active',
     'class_name': 'Description',
-    'school_id': 'School'
+    'school_id': 'School',
+    'RecordTypeId': 'Record Type'
 };
 
 // Define the mapping for leaved values
@@ -54,11 +56,12 @@ async function processFiles() {
     try {
         console.log('Starting contact person data processing...');
         
-        // Create output file
+        // Create output file with BOM for UTF-8
         const finalFilename = 'processed-school-staff.csv';
-        const outputStream = createWriteStream(finalFilename);
+        const outputStream = createWriteStream(finalFilename, { encoding: 'utf8' });
         
-        // Write header row
+        // Write UTF-8 BOM and header row
+        outputStream.write('\uFEFF'); // Write UTF-8 BOM
         const headerRow = REQUIRED_COLUMNS.map(column => 
             `"${(COLUMN_HEADER_MAPPING[column] || column).replace(/"/g, '""')}"`
         ).join(',') + '\n';
@@ -71,9 +74,11 @@ async function processFiles() {
         
         // Process contact person data with streaming to save memory
         return new Promise((resolve, reject) => {
-            const parser = Papa.parse(createReadStream('contact_person.csv'), {
+            const parser = Papa.parse(createReadStream('contact_person.csv', { encoding: 'utf8' }), {
                 header: false, // Process headers manually
                 skipEmptyLines: true,
+                encoding: 'utf8',
+                delimitersToGuess: [',', '\t', '|', ';', Papa.RECORD_SEP, Papa.UNIT_SEP],
                 chunk: function(results) {
                     try {
                         const data = results.data;
@@ -91,10 +96,13 @@ async function processFiles() {
                                     .replace(/\\"/g, '"')  // Handle escaped quotes
                                     .trim()
                                     .toLowerCase();
-                                columnIndices[cleanHeader] = index;
                                 
-                                // Log the header mapping for debugging
-                                console.log(`Mapped header: "${header}" -> "${cleanHeader}"`);
+                                // Special handling for contact_person_id - it's the first column
+                                if (index === 0) {
+                                    columnIndices['contact_person_id'] = index;
+                                } else {
+                                    columnIndices[cleanHeader] = index;
+                                }
                             });
                             
                             return; // Skip processing header row
@@ -111,14 +119,19 @@ async function processFiles() {
                                 record[column] = '';
                             });
                             
+                            // Set default value for RecordTypeId
+                            record['RecordTypeId'] = '012Hy000004KRWLIA4';
+                            
                             // Fill in values from the row based on column indices
                             Object.keys(columnIndices).forEach(column => {
                                 const index = columnIndices[column];
                                 if (index < row.length) {
                                     let value = row[index];
-                                    // Remove quotes if present
+                                    // Remove quotes if present and ensure UTF-8
                                     if (typeof value === 'string') {
                                         value = value.replace(/^"|"$/g, '').trim();
+                                        // Ensure the value is properly encoded
+                                        value = Buffer.from(value, 'utf8').toString('utf8');
                                     }
                                     record[column] = value;
                                 }
