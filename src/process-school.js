@@ -3,44 +3,76 @@ import Papa from 'papaparse';
 import _ from 'lodash';
 import { createReadStream, createWriteStream } from 'fs';
 import { maskData } from './mask-data.js';
+import { PREFECTURE_MAPPING } from './student-mappings.js';
 
 // Define the required columns for our output
 const REQUIRED_COLUMNS = [
-    'name1',
-    'name2',
-    'post',
-    'leaved',
-    'class_name',
     'school_id',
-    'contact_person_id'
-    // 'RecordTypeId'
+    'school_code',
+    'school_kbn',
+    'school_ownership_kbn',
+    'schedule_curlm_id',
+    'school_name',
+    'school_name_kana',
+    'prefectures_cd',
+    'zip_cd',
+    'address1',
+    'address2',
+    'address3',
+    'schedule_tel'
 ];
 
 // Define column header mapping for human-readable output
 const COLUMN_HEADER_MAPPING = {
-    'contact_person_id': 'School_Staff_External_Id__c',
-    'name1': 'FirstName',
-    'name2': 'LastName',
-    'post': 'School_Staff_Role__c',
-    'leaved': 'Active__c',
-    'class_name': 'Description',
-    'school_id': 'School__r:MANAERP__School__c:MANAERP__School_Partner_Id__c'
-    // 'RecordTypeId': 'Record Type'
+    'school_id': 'MANAERP__School_Partner_Id__c',
+    'school_code': 'School_Code__c',
+    'school_kbn': 'MANAERP__School_Level__c',
+    'school_ownership_kbn': 'OperationType__c',
+    'schedule_curlm_id': 'School_Classification__c',
+    'school_name': 'Name',
+    'school_name_kana': 'School_Name_Phonetic__c',
+    'prefectures_cd': 'MANAERP__Prefecture__c',
+    'zip_cd': 'Postal_Code__c',
+    'address1': 'Address_1__c',
+    'address2': 'Address_2__c',
+    'address3': 'Address_3__c',
+    'schedule_tel': 'Phone__c'
 };
 
-// Define the mapping for leaved values
-const LEAVED_MAPPING = {
-    'f': 'FALSE',
-    't': 'TRUE'
+// Define the mapping for school_kbn values
+const SCHOOL_KBN_MAPPING = {
+    '大学': '10',
+    '専門職大学': '13',
+    '大学院': '15',
+    '短大': '20',
+    '専門職短期大学': '23',
+    '高等専門学校': '25',
+    '高校': '30',
+    '中学校': '40',
+    '小学校': '50',
+    '幼稚園': '60',
+    '各種': '81',
+    '専修': '82',
+    'その他教育機関': '90',
+    'その他幼稚園・大学院等': '91',
+    '公共職業能力開発施設等': '95'
 };
 
-// Function to transform leaved values
-function transformLeaved(value) {
-    if (value === "0") {
-        return "FALSE";
-    }
-    return "TRUE";
-}
+// Define the mapping for school_ownership_kbn values
+const SCHOOL_OWNERSHIP_KBN_MAPPING = {
+    '国立': '0',
+    '公立': '1',
+    '私立': '2',
+    '調査不能': '9'
+};
+
+// Define the mapping for curlm_id values
+const CURLM_ID_MAPPING = {
+    '通信制課程' : '1',
+    '全日制課程' : '2',
+    '定時制課程' : '3',
+    '指定なし' : '4'
+};
 
 function cleanText(value) {
     if (typeof value === 'string') {
@@ -52,13 +84,42 @@ function cleanText(value) {
     return value;
 }
 
-// Process contact_person.csv file
+// Function to transform school_kbn values
+function transformSchoolKbn(value) {
+    return SCHOOL_KBN_MAPPING[value] || value;
+}
+
+// Function to transform school_ownership_kbn values
+function transformSchoolOwnershipKbn(value) {
+    return SCHOOL_OWNERSHIP_KBN_MAPPING[value] || value;
+}
+
+// Function to transform curlm_id values
+function transformCurlmId(value) {
+    return CURLM_ID_MAPPING[value] || value;
+}
+
+// Function to transform prefecture values
+function transformPrefecture(value) {
+    // Convert to string to ensure proper lookup
+    const strValue = String(value);
+    return PREFECTURE_MAPPING[strValue] || value;
+}
+
+// Function to transform phone number to integers only
+function transformPhoneNumber(value) {
+    if (!value) return '';
+    // Remove all non-digit characters
+    return value.replace(/\D/g, '');
+}
+
+// Process school.csv file
 async function processFiles() {
     try {
-        console.log('Starting contact person data processing...');
+        console.log('Starting school data processing...');
         
         // Create output file with BOM for UTF-8
-        const finalFilename = 'processed-school-staff.csv';
+        const finalFilename = 'processed-school.csv';
         const outputStream = createWriteStream(finalFilename, { encoding: 'utf8' });
         
         // Write UTF-8 BOM and header row
@@ -73,9 +134,9 @@ async function processFiles() {
         let processedCount = 0;
         let columnIndices = {};
         
-        // Process contact person data with streaming to save memory
+        // Process school data with streaming to save memory
         return new Promise((resolve, reject) => {
-            const parser = Papa.parse(createReadStream('contact_person.csv', { encoding: 'utf8' }), {
+            const parser = Papa.parse(createReadStream('school.csv', { encoding: 'utf8' }), {
                 header: false, // Process headers manually
                 skipEmptyLines: true,
                 encoding: 'utf8',
@@ -98,12 +159,7 @@ async function processFiles() {
                                     .trim()
                                     .toLowerCase();
                                 
-                                // Special handling for contact_person_id - it's the first column
-                                if (index === 0) {
-                                    columnIndices['contact_person_id'] = index;
-                                } else {
-                                    columnIndices[cleanHeader] = index;
-                                }
+                                columnIndices[cleanHeader] = index;
                             });
                             
                             return; // Skip processing header row
@@ -120,9 +176,6 @@ async function processFiles() {
                                 record[column] = '';
                             });
                             
-                            // Set default value for RecordTypeId
-                            // record['RecordTypeId'] = '012Hy000004KRWLIA4';
-                            
                             // Fill in values from the row based on column indices
                             Object.keys(columnIndices).forEach(column => {
                                 const index = columnIndices[column];
@@ -134,16 +187,38 @@ async function processFiles() {
                                         // Ensure the value is properly encoded
                                         value = Buffer.from(value, 'utf8').toString('utf8');
                                     }
-                                    record[column] = value;
+
+                                    // Handle nested fields
+                                    if (column === 'school_list.address1') {
+                                        record['address1'] = value;
+                                    } else if (column === 'school_list.address2') {
+                                        record['address2'] = value;
+                                    } else if (column === 'school_list.address3') {
+                                        record['address3'] = value;
+                                    } else if (column === 'school_list.school_schedule_list.tel') {
+                                        record['schedule_tel'] = value;
+                                    } else if (column === 'school_list.school_schedule_list.curlm_id') {
+                                        record['schedule_curlm_id'] = value;
+                                    } else {
+                                        record[column] = value;
+                                    }
                                 }
                             });
                             
                             // Clean text fields and apply transformations
                             REQUIRED_COLUMNS.forEach(column => {
                                 if (record[column] && typeof record[column] === 'string') {
-                                    // Apply special transformation for leaved field
-                                    if (column === 'leaved') {
-                                        record[column] = transformLeaved(record[column]);
+                                    // Apply special transformations for specific fields
+                                    if (column === 'school_kbn') {
+                                        record[column] = transformSchoolKbn(record[column]);
+                                    } else if (column === 'school_ownership_kbn') {
+                                        record[column] = transformSchoolOwnershipKbn(record[column]);
+                                    } else if (column === 'schedule_curlm_id') {
+                                        record[column] = transformCurlmId(record[column]);
+                                    } else if (column === 'prefectures_cd') {
+                                        record[column] = transformPrefecture(record[column]);
+                                    } else if (column === 'schedule_tel') {
+                                        record[column] = transformPhoneNumber(record[column]);
                                     } else {
                                         record[column] = cleanText(record[column]);
                                     }
@@ -165,7 +240,7 @@ async function processFiles() {
                             
                             // Log progress every 10,000 records
                             if (processedCount % 10000 === 0) {
-                                console.log(`   Processed ${processedCount} contact person records...`);
+                                console.log(`   Processed ${processedCount} school records...`);
                             }
                         }
                     } catch (error) {
@@ -176,7 +251,7 @@ async function processFiles() {
                     outputStream.end();
                     
                     // Final progress report
-                    console.log(`   ✓ Completed processing ${processedCount} contact person records`);
+                    console.log(`   ✓ Completed processing ${processedCount} school records`);
                     
                     console.log('\nFinal Summary:');
                     console.log('-------------');
@@ -200,7 +275,7 @@ async function processFiles() {
 
 // Entry point
 async function main() {
-    console.log('🚀 Starting contact person data processing...\n');
+    console.log('🚀 Starting school data processing...\n');
     const startTime = Date.now();
     
     try {
@@ -210,7 +285,7 @@ async function main() {
         
         // Remove the --mask flag from args to get the input file
         const inputFileArg = args.filter(arg => arg !== '--mask')[0];
-        const inputFile = inputFileArg || 'contact_person.csv';
+        const inputFile = inputFileArg || 'school.csv';
         
         console.log(`Using input file: ${inputFile}`);
         console.log(`Masking enabled: ${shouldMask}`);

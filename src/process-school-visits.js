@@ -7,7 +7,79 @@ function cleanText(value) {
         return value;
     }
     return value;
-}// Define the mapping for contact_type
+}
+
+// Date formatting function
+function formatDate(dateValue) {
+    if (!dateValue) return '';
+    
+    try {
+        // Handle different date formats
+        let date;
+        if (typeof dateValue === 'string') {
+            // Try parsing as ISO date first
+            date = new Date(dateValue);
+            
+            // If that fails, try parsing as YYYY/MM/DD
+            if (isNaN(date.getTime())) {
+                const parts = dateValue.split('/');
+                if (parts.length === 3) {
+                    date = new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+            }
+            
+            // If still invalid, try parsing as YYYY-MM-DD
+            if (isNaN(date.getTime())) {
+                const parts = dateValue.split('-');
+                if (parts.length === 3) {
+                    date = new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+            }
+        } else {
+            date = new Date(dateValue);
+        }
+        
+        if (isNaN(date.getTime())) {
+            console.warn(`Warning: Could not parse date ${dateValue}`);
+            return dateValue;
+        }
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        
+        return `${year}-${month}-${day}`;
+    } catch (error) {
+        console.warn(`Warning: Error formatting date ${dateValue}: ${error.message}`);
+        return dateValue;
+    }
+}
+
+// Time formatting function
+function formatTime(timeValue) {
+    if (!timeValue) return '';
+    
+    try {
+        // Handle different time formats
+        let time;
+        if (typeof timeValue === 'string') {
+            // Try parsing as HH:mm:ss
+            const parts = timeValue.split(':');
+            if (parts.length >= 2) {
+                const hours = parts[0].padStart(2, '0');
+                const minutes = parts[1].padStart(2, '0');
+                const seconds = parts[2] ? parts[2].padStart(2, '0') : '00';
+                return `${hours}:${minutes}:${seconds}.000Z`;
+            }
+        }
+        return timeValue;
+    } catch (error) {
+        console.warn(`Warning: Error formatting time ${timeValue}: ${error.message}`);
+        return timeValue;
+    }
+}
+
+// Define the mapping for contact_type
 const CONTACT_TYPE_MAPPING = {
     '1': '訪問',
     '2': '電話'
@@ -168,23 +240,23 @@ const OUTPUT_COLUMNS = [
 
 // Define the mapping for the column headers in the output
 const COLUMN_HEADER_MAPPING = {
-    'school_contact_id': 'School Visit External ID',
-    'staff_id_1': 'Staff 1',
-    'staff_id_2': 'Staff 2',
-    'staff_id_3': 'Staff 3',
-    'staff_id_4': 'Staff 4',
-    'contact_person_id_1': 'School Staff 1',
-    'contact_person_id_2': 'School Staff 2',
-    'contact_person_id_3': 'School Staff 3',
-    'contact_person_id_4': 'School Staff 4',
-    'school_id': 'School',
-    'date': 'Visit Date',
-    'start_time': 'Start Time',
-    'end_time': 'End Time',
-    'contact_type': 'Visit Method',
-    'contact_purpose_id': 'Visit Purpose',
-    'rank': 'Rank',
-    'comment': 'Remarks'
+    'school_contact_id': 'School_Visit_External_Id__c',
+    'staff_id_1': 'Staff_1__r:Contact:MANAERP__External_User_Id__c',
+    'staff_id_2': 'Staff_2__r:Contact:MANAERP__External_User_Id__c',
+    'staff_id_3': 'Staff_3__r:Contact:MANAERP__External_User_Id__c',
+    'staff_id_4': 'Staff_4__r:Contact:MANAERP__External_User_Id__c',
+    'contact_person_id_1': 'School_Staff_1__r:Contact:School_Staff_External_Id__c',
+    'contact_person_id_2': 'School_Staff_2__r:Contact:School_Staff_External_Id__c',
+    'contact_person_id_3': 'School_Staff_3__r:Contact:School_Staff_External_Id__c',
+    'contact_person_id_4': 'School_Staff_4__r:Contact:School_Staff_External_Id__c',
+    'school_id': 'School__r:MANAERP__School__c:MANAERP__School_Partner_Id__c',
+    'date': 'Visit_Date__c',
+    'start_time': 'Start_Time__c',
+    'end_time': 'End_Time__c',
+    'contact_type': 'Contact_Type__c',
+    'contact_purpose_id': 'Contact_Purpose__c',
+    'rank': 'Rank__c',
+    'comment': 'Remarks__c'
 };
 
 // Transform contact_purpose_id values based on contact_type
@@ -237,9 +309,20 @@ async function processSchoolContactFile() {
                             
                             // Map column names to indices
                             data[0].forEach((header, index) => {
-                                // Clean header name
-                                const cleanHeader = header.replace(/^"|"$/g, '').trim().toLowerCase();
-                                columnIndices[cleanHeader] = index;
+                                // Enhanced header cleaning
+                                let cleanHeader = header;
+                                // Remove all types of quotes and whitespace
+                                cleanHeader = cleanHeader.replace(/^["']|["']$/g, '')  // Remove outer quotes
+                                    .replace(/\\"/g, '"')  // Handle escaped quotes
+                                    .trim()
+                                    .toLowerCase();
+                                
+                                // Special handling for school_contact_id - it's the first column
+                                if (index === 0) {
+                                    columnIndices['school_contact_id'] = index;
+                                } else {
+                                    columnIndices[cleanHeader] = index;
+                                }
                             });
                             
                             return; // Skip processing header row
@@ -295,8 +378,18 @@ async function processSchoolContactFile() {
                                         }
                                     } 
                                     // For other columns, apply appropriate transformations
-                                    else if (column !== 'staff_ids' && column !== 'contact_person_ids') {
-                                        if (column === 'contact_type') {
+                                    else {
+                                        // Special handling for school_contact_id
+                                        if (column === 'school_contact_id') {
+                                            record[column] = value || '';
+                                        }
+                                        else if (column === 'date') {
+                                            record[column] = formatDate(value);
+                                        }
+                                        else if (column === 'start_time' || column === 'end_time') {
+                                            record[column] = formatTime(value);
+                                        }
+                                        else if (column === 'contact_type') {
                                             record[column] = transformContactType(value);
                                         } 
                                         else if (column === 'contact_purpose_id') {
