@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Configuration constant for phase check
-const PHASE_CHECK = 'phase11';
+const PHASE_CHECK = 'phase22';
 
 function fixNextLine(inputFile = 'combined_student_data_direct_merge.csv', outputFile = null) {
     if (!outputFile) {

@@ -11,32 +11,32 @@ export const COLUMN_MAPPINGS = {
 
 // Output column name mapping
 export const OUTPUT_COLUMN_MAPPING = {
-    'kname1': 'Last Name',
-    'kname2': 'First Name',
-    'fname1': 'Last Name (Phonetic)',
-    'fname2': 'First Name (Phonetic)',
-    'student_id': 'External User Id',
-    'student_no': 'Student ID number',
+    'kname1': 'LastName',
+    'kname2': 'FirstName',
+    'fname1': 'MANAERP__Last_Name_Phonetic__c',
+    'fname2': 'MANAERP__First_Name_Phonetic__c',
+    'student_id': 'MANAERP__External_User_Id__c',
+    'student_no': 'Student_ID_number__c',
     'birthday': 'Birthdate',
-    'sex': 'Gender Identity',
-    'operate_type_id': 'Student Category',
-    'course_type': 'How to learn type',
-    'branch_id': 'Current Campus',
-    'main_school_branch_id': 'Current Main school',
-    'grade': 'Grade',
+    'sex': 'GenderIdentity',
+    'operate_type_id': 'Student_Category__c',
+    'course_type': 'How_to_learn_type__c',
+    'branch_id': 'Current_Campus__r:Account:Org_Code__c',
+    'main_school_branch_id': 'Current_Main_school__r:Account:Org_Code__c',
+    'grade': 'MANAERP__Grade__r:MANAERP__Grade__c:Name',
     'phone': 'Phone',
-    'other_phone': 'Other Phone',
+    'other_phone': 'OtherPhone',
     'main_email': 'Email',
-    'sub_email': 'Sub Email',
-    'zip_cd': 'Postal Code',
-    'pref_id': 'Prefecture',
-    'address1': 'City',
-    'address2': 'Street 1',
-    'address3': 'Street 2',
-    'entrance_date': 'Date of enrollment',
-    'graduate_date': 'Expected graduation date',
+    'sub_email': 'Sub_Email__c',
+    'zip_cd': 'MANAERP__Postal_Code__c',
+    'pref_id': 'MANAERP__Prefecture__c',
+    'address1': 'MANAERP__City__c',
+    'address2': 'MANAERP__Street_1__c',
+    'address3': 'MANAERP__Street_2__c',
+    'entrance_date': 'Date_of_enrollment__c',
+    'graduate_date': 'Expected_graduation_date__c',
     'comment': 'Description',
-    'dm_sendable': 'DM sending flag'
+    'dm_sendable': 'DM_sending_flag__c'
 };
 
 // Prefecture mappings
@@ -424,11 +424,11 @@ export const BRANCH_ID_MAPPING = {
     '227': '8732'
 };
 
-// Add this transformation function
-export function transformBranchId(value) {
-    // Convert to string to ensure proper lookup
+// Helper function to pad number with leading zeros to make it 6 digits
+export function padToSixDigits(value) {
+    if (!value) return value;
     const strValue = String(value);
-    return BRANCH_ID_MAPPING[strValue] || value;
+    return strValue.padStart(6, '0');
 }
 
 // Function to get output column names
@@ -471,6 +471,19 @@ export function transformSex(value) {
     // Convert to string to ensure proper lookup
     const strValue = String(value);
     return SEX_MAPPING[strValue] || value;
+}
+
+// Add transformation for branch_id and main_school_branch_id
+export function transformBranchId(value) {
+    // First get the mapped value
+    const strValue = String(value);
+    const mappedValue = BRANCH_ID_MAPPING[strValue] || value;
+    // Then pad it to 6 digits
+    return padToSixDigits(mappedValue);
+}
+
+export function transformMainSchoolBranchId(value) {
+    return padToSixDigits(value);
 }
 
 // Helper function to get a field value using the column mappings

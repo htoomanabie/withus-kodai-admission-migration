@@ -424,7 +424,7 @@ const MEDIA_TYPE_DETAIL_MAPPING = {
     '395': 'リクルート３６０',
     '396': 'セブンティーン',
     '397': 'カジカジ',
-    '398': 'ＭＥＮ’Ｓ ＥＧＧ',
+    '398': 'ＭＥＮ\'Ｓ ＥＧＧ',
     '399': '朝日ボイス',
     '400': 'ｎｏｎ－ｎｏ',
     '401': 'スクランブルエッグ',
@@ -1626,46 +1626,46 @@ const REQUIRED_COLUMNS = [
 
 // Define column header mapping for human-readable output
 const COLUMN_HEADER_MAPPING = {
-    'address3': 'Address (Building/Apartment)',
-    'address1': 'Address (City)',
-    'pref_id': 'Address (State/Province)',
-    'zip_cd': 'Address (zip/postal code)',
-    'address2': 'Address Street',
-    'student_id': 'Student',
-    'branch_id': 'Campus(Branch)',
-    'portable_email': 'Cell phone address',
-    'portable_tel': 'Cell phone number',
-    'claim': 'Claim Flag',
-    'comment': 'Content',
-    'hope_branch_id': 'Desired Campus',
-    'inquiry_reason_id': 'Desired Course1',
-    'inquiry_reason_id_category': 'Desired Course1 Category',
-    'kname2': 'Inquirer\'s First Name',
-    'fname2': 'Inquirer\'s First Name (Phonetic)',
-    'kname1': 'Inquirer\'s Last Name',
-    'fname1': 'Inquirer\'s Last Name (Phonetic)',
-    'inquiry_at': 'Inquiry Date',
-    'inquiry_id': 'Inquiry External Id',
-    'media_type1': 'Inquiry media',
-    'media_type1_detail': 'Inquiry media detail',
-    'inquiry_way_id': 'Inquiry Method',
-    'parent_id': 'Parent',
-    'email': 'PC address',
-    'charge_staff_id': 'Person in Charge',
-    'tel': 'Phone Number',
-    'inquiry_reason_id1': 'Proposed Course1',
-    'inquiry_reason_id1_category': 'Proposed Course1 Category',
-    'inquiry_reason_id2': 'Proposed Course2',
-    'inquiry_reason_id2_category': 'Proposed Course2 Category',
-    'inquiry_reason_id3': 'Proposed Course3',
-    'inquiry_reason_id3_category': 'Proposed Course3 Category',
-    'receipt_branch_id': 'Receiver',
-    'inquiry_target_type': 'Relationship',
-    'operate_type_id': 'Student Category',
-    'web_entry_id': 'Admission',
-    'inquiry_topic': 'Inquiry Topic',
-    'status': 'Status',
-    'sex': 'Gender Identity' // Added sex column header
+    'address3': 'Address_Building__c',
+    'address1': 'Address_City__c',
+    'pref_id': 'Address_State__c',
+    'zip_cd': 'Address_Zip__c',
+    'address2': 'Address_Street__c',
+    'student_id': 'Student__r:Contact:MANAERP__External_User_Id__c',
+    'branch_id': 'Campus_Branch__r:Account:MANAERP__School_Code__c',
+    'portable_email': 'Cellphone_Address__c',
+    'portable_tel': 'Cellphone_Number__c',
+    'claim': 'Claim_Flag__c',
+    'comment': 'Content__c',
+    'hope_branch_id': 'Desired_Campus__r:Account:MANAERP__School_Code__c',
+    'inquiry_reason_id': 'Desired_Course_1_Category__c',
+    'inquiry_reason_id_category': 'Desired_Course_1_Category__c',
+    'kname2': 'Inquirer_First_Name__c',
+    'fname2': 'Inquirer_First_Name_Phonetic__c',
+    'kname1': 'Inquirer_Last_Name__c',
+    'fname1': 'Inquirer_Last_Name_Phonetic__c',
+    'inquiry_at': 'Inquiry_Date__c',
+    'inquiry_id': 'Inquiry_External_Id__c',
+    'media_type1': 'Inquiry_Media__c',
+    'media_type1_detail': 'Inquiry_Media_Detail__c',
+    'inquiry_way_id': 'Inquiry_Method__c',
+    'parent_id': 'Parent__r:Contact:MANAERP__External_User_Id__c',
+    'email': 'PC_Address__c',
+    'charge_staff_id': 'Person_In_Charge__r:Contact:MANAERP__External_User_Id__c',
+    'tel': 'Phone_Number__c',
+    'inquiry_reason_id1': 'Proposed_Course_1__c',
+    'inquiry_reason_id1_category': 'Proposed_Course_1_Category__c',
+    'inquiry_reason_id2': 'Proposed_Course_2__c',
+    'inquiry_reason_id2_category': 'Proposed_Course_2_Category__c',
+    'inquiry_reason_id3': 'Proposed_Course_3__c',
+    'inquiry_reason_id3_category': 'Proposed_Course_3_Category__c',
+    'receipt_branch_id': 'Receiver__r:Account:MANAERP__School_Code__c',
+    'inquiry_target_type': 'Relationship__c',
+    'operate_type_id': 'Student_Category__c',
+    'web_entry_id': 'Admission__r:Admission__c:Admission_External_Id__c',
+    'inquiry_topic': 'Inquiry_Topic__c',
+    'status': 'Status__c',
+    'sex': 'Student_Gender__c' // Added sex column header
 };
 
 // Function to transform sex values
@@ -1746,6 +1746,71 @@ function removeHyphens(value) {
         return value.replace(/-/g, '');
     }
     return value;
+}
+
+// Date formatting function
+function formatDate(dateValue) {
+    if (!dateValue) return '';
+    
+    try {
+        // Handle different date formats
+        let date;
+        if (typeof dateValue === 'string') {
+            // Try parsing as ISO date first
+            date = new Date(dateValue);
+            
+            // If that fails, try parsing as YYYY/MM/DD
+            if (isNaN(date.getTime())) {
+                const parts = dateValue.split('/');
+                if (parts.length === 3) {
+                    date = new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+            }
+            
+            // If still invalid, try parsing as YYYY-MM-DD
+            if (isNaN(date.getTime())) {
+                const parts = dateValue.split('-');
+                if (parts.length === 3) {
+                    date = new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+            }
+        } else {
+            date = new Date(dateValue);
+        }
+        
+        if (isNaN(date.getTime())) {
+            console.warn(`Warning: Could not parse date ${dateValue}`);
+            return dateValue;
+        }
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        
+        return `${year}-${month}-${day}`;
+    } catch (error) {
+        console.warn(`Warning: Error formatting date ${dateValue}: ${error.message}`);
+        return dateValue;
+    }
+}
+
+// Function to transform charge_staff_id
+function transformChargeStaffId(value) {
+    if (!value) return '';
+    
+    // Convert to string and trim
+    const strValue = String(value).trim();
+    
+    // Check if it's a number
+    if (/^\d+$/.test(strValue)) {
+        // Pad with leading zeros to make it 7 digits
+        const paddedValue = strValue.padStart(7, '0');
+        // Add 'U' prefix
+        return `U${paddedValue}`;
+    }
+    
+    // Return empty string for non-numeric values
+    return '';
 }
 
 // Process all files and create the mapping
@@ -2039,6 +2104,11 @@ async function processFiles() {
                             if (record.inquiry_target_type) {
                                 record.inquiry_target_type = transformInquiryTargetType(record.inquiry_target_type);
                             }
+
+                            // Format inquiry_at date
+                            if (record.inquiry_at) {
+                                record.inquiry_at = formatDate(record.inquiry_at);
+                            }
                             
                             // Clean text for claim and comment columns
                             ['claim', 'comment'].forEach(column => {
@@ -2047,6 +2117,11 @@ async function processFiles() {
                                 }
                             });
                             
+                            // Transform charge_staff_id
+                            if (record.charge_staff_id) {
+                                record.charge_staff_id = transformChargeStaffId(record.charge_staff_id);
+                            }
+
                             // Convert to CSV row
                             const csvRow = REQUIRED_COLUMNS.map(column => {
                                 const value = record[column];

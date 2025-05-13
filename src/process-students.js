@@ -21,7 +21,7 @@ import {
 
 // Configuration
 const CHUNK_SIZE = 5000; // Smaller chunk size to reduce memory pressure
-const TAG_VALUE = "phase11"; // Configurable tag value - can be changed or removed in final migration
+const TAG_VALUE = "phase22"; // Configurable tag value - can be changed or removed in final migration
 const ADD_TAG_COLUMN = TAG_VALUE !== ""; // Flag to determine if tag column should be added
 
 // Function to remove dashes from a string
