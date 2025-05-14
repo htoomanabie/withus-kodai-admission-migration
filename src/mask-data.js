@@ -173,6 +173,190 @@ function maskValue(value) {
 }
 
 /**
+ * Cleans a string value by removing unwanted characters and normalizing spaces
+ * @param {string} value - The value to clean
+ * @returns {string} - The cleaned value
+ */
+function cleanString(value) {
+    if (!value) return '';
+    
+    // Convert to string if not already
+    let str = String(value);
+    
+    // Remove control characters except newlines and tabs
+    str = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    
+    // Normalize whitespace (convert multiple spaces to single space)
+    str = str.replace(/\s+/g, ' ');
+    
+    // Remove leading/trailing whitespace
+    str = str.trim();
+    
+    return str;
+}
+
+/**
+ * Cleans an email address by removing invalid characters and normalizing format
+ * @param {string} email - The email to clean
+ * @returns {string} - The cleaned email
+ */
+function cleanEmail(email) {
+    if (!email) return '';
+    
+    let cleaned = cleanString(email);
+    
+    // Remove any spaces
+    cleaned = cleaned.replace(/\s+/g, '');
+    
+    // Convert to lowercase
+    cleaned = cleaned.toLowerCase();
+    
+    // Remove any characters that aren't valid in email addresses
+    cleaned = cleaned.replace(/[^a-z0-9@._-]/g, '');
+    
+    return cleaned;
+}
+
+/**
+ * Cleans a phone number by removing non-numeric characters
+ * @param {string} phone - The phone number to clean
+ * @returns {string} - The cleaned phone number
+ */
+function cleanPhone(phone) {
+    if (!phone) return '';
+    
+    // Remove all non-numeric characters
+    return String(phone).replace(/\D/g, '');
+}
+
+/**
+ * Cleans a postal code by removing non-numeric characters
+ * @param {string} postalCode - The postal code to clean
+ * @returns {string} - The cleaned postal code
+ */
+function cleanPostalCode(postalCode) {
+    if (!postalCode) return '';
+    
+    // Remove all non-numeric characters
+    return String(postalCode).replace(/\D/g, '');
+}
+
+/**
+ * Cleans a record by applying appropriate cleaning functions to each field
+ * @param {Object} record - The record to clean
+ * @returns {Object} - The cleaned record
+ */
+function cleanRecord(record) {
+    const cleanedRecord = {};
+    
+    for (const [key, value] of Object.entries(record)) {
+        if (value === null || value === undefined) {
+            cleanedRecord[key] = '';
+            continue;
+        }
+        
+        // Apply specific cleaning based on field type
+        if (key.toLowerCase().includes('email')) {
+            cleanedRecord[key] = cleanEmail(value);
+        } else if (key.toLowerCase().includes('phone') || key.toLowerCase().includes('tel')) {
+            cleanedRecord[key] = cleanPhone(value);
+        } else if (key.toLowerCase().includes('postal') || key.toLowerCase().includes('zip')) {
+            cleanedRecord[key] = cleanPostalCode(value);
+        } else {
+            cleanedRecord[key] = cleanString(value);
+        }
+    }
+    
+    return cleanedRecord;
+}
+
+/**
+ * Pre-processes CSV content to fix common quote issues
+ * @param {string} content - The CSV content to pre-process
+ * @returns {string} - The processed content
+ */
+function preprocessCSVContent(content) {
+    // Split into lines
+    const lines = content.split('\n');
+    
+    // Process each line
+    return lines.map(line => {
+        // Skip empty lines
+        if (!line.trim()) return line;
+        
+        // First, properly handle quoted fields that might contain commas
+        let processedLine = '';
+        let inQuotes = false;
+        let currentField = '';
+        
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+                if (!inQuotes) {
+                    inQuotes = true;
+                    currentField += char;
+                } else if (i + 1 < line.length && line[i + 1] === '"') {
+                    // Handle escaped quotes
+                    currentField += '""';
+                    i++; // Skip the next quote
+                } else {
+                    inQuotes = false;
+                    currentField += char;
+                }
+            } else if (char === ',' && !inQuotes) {
+                // End of field
+                processedLine += currentField + ',';
+                currentField = '';
+            } else {
+                currentField += char;
+            }
+        }
+        
+        // Add the last field
+        processedLine += currentField;
+        
+        // Now split into fields and process each one
+        const fields = processedLine.split(',');
+        
+        // Process each field
+        const processedFields = fields.map((field, index) => {
+            // Special handling for Description field (15th field, 0-based index)
+            if (index === 14) {
+                // If the field contains only quotes, return empty string
+                if (field.replace(/"/g, '').trim() === '') {
+                    return '""';
+                }
+                // Otherwise, properly escape the quotes
+                return `"${field.replace(/^"+|"+$/g, '').replace(/"/g, '""')}"`;
+            }
+            
+            // For other fields, ensure proper quote handling
+            if (field.startsWith('"') && field.endsWith('"')) {
+                // Field is already properly quoted
+                return field;
+            } else if (field.includes(',') || field.includes('"')) {
+                // Field needs quoting
+                return `"${field.replace(/"/g, '""')}"`;
+            }
+            
+            return field;
+        });
+        
+        // Ensure we have exactly 17 fields
+        while (processedFields.length < 17) {
+            processedFields.push('');
+        }
+        if (processedFields.length > 17) {
+            processedFields.splice(17);
+        }
+        
+        // Join fields back together
+        return processedFields.join(',');
+    }).join('\n');
+}
+
+/**
  * Main function to mask data in a CSV file
  * @param {string} inputFile - Path to the input CSV file
  * @returns {boolean} - True if masking was successful, false otherwise
@@ -182,36 +366,90 @@ async function maskData(inputFile) {
         console.log(`\nStarting data masking for ${inputFile}...`);
         
         // Read the input file
-        const content = await fs.readFile(inputFile, 'utf8');
+        let content = await fs.readFile(inputFile, 'utf8');
         
-        // Parse the CSV
+        // Pre-process the content to fix quote issues
+        console.log('Pre-processing CSV content to fix quote issues...');
+        content = preprocessCSVContent(content);
+        
+        // Parse the CSV with more lenient options
         const results = Papa.parse(content, {
             header: true,
-            skipEmptyLines: true
+            skipEmptyLines: true,
+            transform: (value) => {
+                if (typeof value === 'string') {
+                    // Clean up malformed quotes and normalize the value
+                    return value
+                        .replace(/^"|"$/g, '') // Remove surrounding quotes
+                        .replace(/""/g, '"')   // Convert double quotes to single
+                        .replace(/\r/g, '')    // Remove carriage returns
+                        .trim();               // Remove extra whitespace
+                }
+                return value;
+            },
+            transformHeader: (header) => {
+                // Clean up header names
+                return header
+                    .trim()
+                    .replace(/^"|"$/g, '')
+                    .replace(/\r/g, '');
+            },
+            // More lenient parsing options
+            dynamicTyping: false,
+            comments: false,
+            delimitersToGuess: [',', '\t', '|', ';', Papa.RECORD_SEP, Papa.UNIT_SEP],
+            // Handle quotes more flexibly
+            quoteChar: '"',
+            escapeChar: '"',
+            // Skip empty lines and handle errors
+            skipEmptyLines: true,
+            error: (error) => {
+                console.warn(`Warning: CSV parsing issue at row ${error.row}: ${error.message}`);
+            }
         });
         
         if (results.errors.length > 0) {
-            console.error('Error parsing CSV:', results.errors);
-            return false;
+            console.warn('Warnings during CSV parsing:', results.errors);
+            // Continue processing even with warnings
         }
         
-        // Mask sensitive data
-        const maskedData = results.data.map(record => {
-            const maskedRecord = { ...record };
-            MASKED_COLUMNS.forEach(column => {
-                if (maskedRecord[column] !== undefined) {
-                    maskedRecord[column] = maskValue(maskedRecord[column]);
-                }
-            });
-            return maskedRecord;
+        if (!results.data || results.data.length === 0) {
+            throw new Error('No data found in the CSV file');
+        }
+        
+        console.log('Cleaning data before masking...');
+        
+        // Clean and mask sensitive data
+        const maskedData = results.data.map((record, index) => {
+            try {
+                // First clean the record
+                const cleanedRecord = cleanRecord(record);
+                
+                // Then apply masking
+                const maskedRecord = { ...cleanedRecord };
+                MASKED_COLUMNS.forEach(column => {
+                    if (maskedRecord[column] !== undefined) {
+                        maskedRecord[column] = maskValue(maskedRecord[column]);
+                    }
+                });
+                return maskedRecord;
+            } catch (error) {
+                console.warn(`Warning: Error processing record at index ${index}: ${error.message}`);
+                return record; // Return original record if processing fails
+            }
         });
         
         // Create output filename
         const outputFile = inputFile.replace('.csv', '_masked.csv');
         
-        // Convert back to CSV
+        // Convert back to CSV with more robust options
         const csv = Papa.unparse(maskedData, {
-            header: true
+            header: true,
+            quotes: true,
+            quoteChar: '"',
+            escapeChar: '"',
+            delimiter: ',',
+            newline: '\n'
         });
         
         // Write the masked data to a new file
@@ -228,7 +466,7 @@ async function maskData(inputFile) {
         console.error('Error masking data:', error);
         return {
             success: false,
-            error: error.message
+            error: error.message || 'Unknown error occurred during masking'
         };
     }
 }

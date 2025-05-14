@@ -23,6 +23,7 @@ import {
 const CHUNK_SIZE = 5000; // Smaller chunk size to reduce memory pressure
 const TAG_VALUE = "phase22"; // Configurable tag value - can be changed or removed in final migration
 const ADD_TAG_COLUMN = TAG_VALUE !== ""; // Flag to determine if tag column should be added
+const COUNTER_START = 25000001; // Starting value for the counter column. check from `SELECT Id, MANAERP__Username_Count__c FROM MANAERP__Contact_Username_Counter__c`
 
 // Function to remove dashes from a string
 function removeDashes(str) {
@@ -248,6 +249,9 @@ async function processStudentData(inputFile) {
         console.log('🚀 Starting student data processing...\n');
         const startTime = Date.now();
         
+        // Initialize counter
+        let currentCounter = COUNTER_START;
+        
         // Log the tag value being used
         console.log(`Using tag value: "${TAG_VALUE}" (ADD_TAG_COLUMN: ${ADD_TAG_COLUMN})`);
         
@@ -330,8 +334,9 @@ async function processStudentData(inputFile) {
         const outputFilename = 'processed_student_data.csv';
         const incompleteFilename = 'processed_student_data_incomplete.csv';
         
-        // Add tag column to the headers if needed
-        const headersWithTag = ADD_TAG_COLUMN ? [...REQUIRED_COLUMNS, 'tag'] : REQUIRED_COLUMNS;
+        // Add counter column and tag column to the headers if needed
+        const headersWithCounter = ['MANAERP__Contact_Username_Counter__c', ...REQUIRED_COLUMNS];
+        const headersWithTag = ADD_TAG_COLUMN ? [...headersWithCounter, 'tag'] : headersWithCounter;
         const headers = headersWithTag.join(',') + '\n';
         
         await fs.writeFile(outputFilename, headers);
@@ -419,19 +424,21 @@ async function processStudentData(inputFile) {
             });
             
             // Convert chunks to CSV
-            const processedCsv = processedChunk.map(record => 
-                headersWithTag.map(column => {
+            const processedCsv = processedChunk.map(record => {
+                const counter = currentCounter++;
+                return [counter, ...headersWithTag.slice(1).map(column => {
                     const value = record[column];
                     return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : (value ?? '');
-                }).join(',')
-            ).join('\n');
+                })].join(',');
+            }).join('\n');
             
-            const incompleteCsv = incompleteChunk.map(record => 
-                headersWithTag.map(column => {
+            const incompleteCsv = incompleteChunk.map(record => {
+                const counter = currentCounter++;
+                return [counter, ...headersWithTag.slice(1).map(column => {
                     const value = record[column];
                     return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : (value ?? '');
-                }).join(',')
-            ).join('\n');
+                })].join(',');
+            }).join('\n');
             
             if (processedChunk.length > 0) {
                 await fs.appendFile(outputFilename, processedCsv + '\n');
@@ -506,10 +513,10 @@ async function renameColumnsInFinalOutput(filename) {
         const headerLine = lines[0];
         const headers = headerLine.split(',');
         
-        // Replace the header line with mapped column names
+        // Replace the header line with mapped column names, keeping the counter column first
         const newHeaderLine = ADD_TAG_COLUMN 
-            ? getOutputColumnNames().join(',') + ',tag'
-            : getOutputColumnNames().join(',');
+            ? 'MANAERP__Contact_Username_Counter__c,' + getOutputColumnNames().join(',') + ',tag'
+            : 'MANAERP__Contact_Username_Counter__c,' + getOutputColumnNames().join(',');
         
         // Create new content with updated header line
         lines[0] = newHeaderLine;

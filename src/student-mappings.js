@@ -11,6 +11,7 @@ export const COLUMN_MAPPINGS = {
 
 // Output column name mapping
 export const OUTPUT_COLUMN_MAPPING = {
+    'MANAERP__Contact_Username_Counter__c': 'MANAERP__Contact_Username_Counter__c',
     'kname1': 'LastName',
     'kname2': 'FirstName',
     'fname1': 'MANAERP__Last_Name_Phonetic__c',
@@ -164,6 +165,7 @@ export const SEX_MAPPING = {
 };
 
 export const REQUIRED_COLUMNS = [
+    'MANAERP__Contact_Username_Counter__c',
     'kname1',
     'kname2',
     'fname1',

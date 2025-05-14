@@ -5,28 +5,47 @@ import { fixNextLine } from './fix-line.js';
 import { maskData } from './mask-data.js';
 
 const CHUNK_SIZE = 5000; // Smaller chunk size to reduce memory pressure
-const TAG_VALUE = "phase11"; // Configurable tag value - can be changed or removed in final migration
+const TAG_VALUE = "phase22"; // Configurable tag value - can be changed or removed in final migration
 // Define the column name mappings for the output
-const OUTPUT_COLUMN_MAPPING = {
-    'parent_id': 'External User Id',
-    'kname1': 'Last Name',
-    'kname2': 'First Name',
-    'fname1': 'Last Name (Phonetic)',
-    'fname2': 'First Name (Phonetic)',
-    'portable_email': 'Email',
-    'email': 'Sub Email',
-    'portable_tel': 'Other Phone',
-    'tel': 'Phone',
-    'zip_cd': 'Postal Code',
-    'pref_id': 'Prefecture',
-    'address1': 'City',
-    'address2': 'Street 1',
-    'address3': 'Street 2',
-    'combined_info': 'Description',
-    'gender': 'Gender Identity',
-    'tag': 'Tag'
-};
+// const OUTPUT_COLUMN_MAPPING = {
+//     'parent_id': 'External User Id',
+//     'kname1': 'Last Name',
+//     'kname2': 'First Name',
+//     'fname1': 'Last Name (Phonetic)',
+//     'fname2': 'First Name (Phonetic)',
+//     'portable_email': 'Email',
+//     'email': 'Sub Email',
+//     'portable_tel': 'Other Phone',
+//     'tel': 'Phone',
+//     'zip_cd': 'Postal Code',
+//     'pref_id': 'Prefecture',
+//     'address1': 'City',
+//     'address2': 'Street 1',
+//     'address3': 'Street 2',
+//     'combined_info': 'Description',
+//     'gender': 'Gender Identity',
+//     'tag': 'Tag'
+// };
 
+const OUTPUT_COLUMN_MAPPING = {
+    'parent_id': 'MANAERP__External_User_Id__c',
+    'kname1': 'LastName',
+    'kname2': 'FirstName',
+    'fname1': 'MANAERP__Last_Name_Phonetic__c',
+    'fname2': 'MANAERP__First_Name_Phonetic__c',
+    'portable_email': 'Email',
+    'email': 'Sub_Email__c',
+    'portable_tel': 'OtherPhone',
+    'tel': 'Phone',
+    'zip_cd': 'MANAERP__Postal_Code__c',
+    'pref_id': 'MANAERP__Prefecture__c',
+    'address1': 'MANAERP__City__c',
+    'address2': 'MANAERP__Street_1__c',
+    'address3': 'MANAERP__Street_2__c',
+    'combined_info': 'Description',
+    'gender': 'GenderIdentity',
+    'tag': 'MANAERP__Tag__c'
+};
 // Define the mappings
 const PREFECTURE_MAPPING = {
     '1': '北海道',
@@ -113,8 +132,52 @@ function transformPrefecture(value) {
     return PREFECTURE_MAPPING[strValue] || value;
 }
 
+// Transform and derive phone numbers
+function derivePhoneNumbers(record) {
+    const tel = record['tel'];
+    const portableTel = record['portable_tel'];
+    
+    let phone = null;
+    let otherPhone = null;
+
+    // Use explicit existence checks rather than truthiness
+    const hasTel = tel !== undefined && tel !== null && tel !== '';
+    const hasPortableTel = portableTel !== undefined && portableTel !== null && portableTel !== '';
+
+    // Both numbers exist
+    if (hasTel && hasPortableTel) {
+        phone = removeDashes(portableTel);
+        otherPhone = removeDashes(tel);
+    }
+    // Only tel exists
+    else if (hasTel) {
+        phone = removeDashes(tel);
+    }
+    // Only portable_tel exists
+    else if (hasPortableTel) {
+        phone = removeDashes(portableTel);
+    }
+    // Check if phone or other_phone already exist
+    else {
+        if (record.phone !== undefined && record.phone !== null && record.phone !== '') {
+            phone = record.phone;
+        }
+        if (record.other_phone !== undefined && record.other_phone !== null && record.other_phone !== '') {
+            otherPhone = record.other_phone;
+        }
+    }
+
+    return {
+        phone,
+        other_phone: otherPhone
+    };
+}
+
 function filterColumns(record) {
     const filteredRecord = {};
+    
+    // Get derived phone numbers
+    const phoneNumbers = derivePhoneNumbers(record);
     
     // Create combined info field with line breaks, but only for non-empty values
     const employment = record['employment'] !== undefined ? record['employment'] : '';
@@ -138,13 +201,22 @@ function filterColumns(record) {
     };
     
     REQUIRED_COLUMNS.forEach(column => {
-        let value = modifiedRecord[column] !== undefined ? modifiedRecord[column] : '';
+        let value;
+        
+        // Handle special columns
+        if (column === 'tel') {
+            value = phoneNumbers.phone;
+        } else if (column === 'portable_tel') {
+            value = phoneNumbers.other_phone;
+        } else {
+            value = modifiedRecord[column] !== undefined ? modifiedRecord[column] : '';
+        }
         
         // Apply transformations
         if (column === 'pref_id') {
             value = transformPrefecture(value);
-        } else if (column === 'tel' || column === 'portable_tel' || column === 'zip_cd') {
-            // Remove dashes from phone numbers and zip code
+        } else if (column === 'zip_cd') {
+            // Remove dashes from zip code
             value = removeDashes(value);
         } else if (column === 'parent_id') {
             // Add 'p' prefix to parent_id
