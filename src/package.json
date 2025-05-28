@@ -1,19 +1,13 @@
 {
-  "name": "withus-kodai-csv",
-  "type": "module",
+  "name": "withus-kodai-data-migration",
   "version": "1.0.0",
-  "main": "withus-kodai-student-migration.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "description": "",
+  "main": "process-student.js",
+  "type": "module",
   "dependencies": {
-    "csv-parser": "^3.2.0",
-    "csv-writer": "^1.6.0",
-    "lodash": "^4.17.21",
-    "papaparse": "^5.5.2"
+    "csv-parse": "^5.5.3",
+    "csv-stringify": "^6.4.5",
+    "papaparse": "^5.4.1",
+    "lodash": "^4.17.21"
   }
 }

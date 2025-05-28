@@ -313,33 +313,51 @@ const COLUMN_HEADER_MAPPING = {
     'admission_judgement_status': 'Admission Judgement Status'
 };
 
-// Function to convert date format from YYYYMM to YYYY-MM-DD
-function formatYearMonthToDate(value) {
+// Function to format date to YYYY-MM-DD
+function formatDateToYYYYMMDD(value) {
     // Handle empty values
     if (!value && value !== 0) {
-        return value;
+        return '';
     }
     
     // Force conversion to string and remove any whitespace
     let strValue = String(value).replace(/\s/g, '');
     
-    // Pad with leading zeros if needed (in case it's a number less than 6 digits)
-    while (strValue.length < 6) {
-        strValue = '0' + strValue;
+    // If it's already in YYYY-MM-DD format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(strValue)) {
+        return strValue;
     }
     
-    // If it's exactly 6 characters, assume it's YYYYMM
-    if (strValue.length === 6) {
-        // Extract year and month, regardless of content
+    // If it's in YYYY/MM/DD format, convert to YYYY-MM-DD
+    if (/^\d{4}\/\d{2}\/\d{2}$/.test(strValue)) {
+        return strValue.replace(/\//g, '-');
+    }
+    
+    // If it's in YYYYMMDD format
+    if (/^\d{8}$/.test(strValue)) {
         const year = strValue.slice(0, 4);
         const month = strValue.slice(4, 6);
-        
-        // Create the YYYY-MM-DD format with fixed day 01
+        const day = strValue.slice(6, 8);
+        return `${year}-${month}-${day}`;
+    }
+    
+    // If it's in YYYYMM format
+    if (/^\d{6}$/.test(strValue)) {
+        const year = strValue.slice(0, 4);
+        const month = strValue.slice(4, 6);
         return `${year}-${month}-01`;
     }
     
-    // Return original value if conversion failed
-    return value;
+    // If it's a number less than 6 digits, pad with zeros
+    if (/^\d{1,5}$/.test(strValue)) {
+        strValue = strValue.padStart(6, '0');
+        const year = strValue.slice(0, 4);
+        const month = strValue.slice(4, 6);
+        return `${year}-${month}-01`;
+    }
+    
+    // Return empty string if conversion failed
+    return '';
 }
 
 // Transform prefecture values
@@ -521,6 +539,16 @@ function processRecord(record) {
             column === 'webentry_other_hs1_pref') {
             value = transformPrefecture(value);
         }
+        // Format all date fields to YYYY-MM-DD
+        else if (column === 'webentry_payment_date' || 
+                 column === 'date' || 
+                 column === 'webentry_birthday' ||
+                 column === 'webentry_ed_jhs_to' ||
+                 column === 'webentry_ed_hs1_from' ||
+                 column === 'webentry_ed_hs1_to' ||
+                 column === 'webentry_other_hs1_date') {
+            value = formatDateToYYYYMMDD(value);
+        }
         // Transform operate_type_id
         else if (column === 'operate_type_id') {
             value = transformOperateType(value);
@@ -582,18 +610,6 @@ function processRecord(record) {
         // Transform webentry_free
         else if (column === 'webentry_free') {
             value = transformFree(value);
-        }
-        // Transform webentry_ed_jhs_to date format from YYYYMM to YYYY-MM-DD
-        else if (column === 'webentry_ed_jhs_to') {
-            value = formatYearMonthToDate(value);
-        }
-        // Transform webentry_ed_hs1_from date format from YYYYMM to YYYY-MM-DD
-        else if (column === 'webentry_ed_hs1_from') {
-            value = formatYearMonthToDate(value);
-        }
-        // Transform webentry_ed_hs1_to date format from YYYYMM to YYYY-MM-DD
-        else if (column === 'webentry_ed_hs1_to') {
-            value = formatYearMonthToDate(value);
         }
         // Clean text columns by removing line breaks and normalizing whitespace
         else if (column === 'webentry_hope' || column === 'remarks') {
