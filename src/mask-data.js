@@ -23,6 +23,7 @@ const MASKED_COLUMNS = [
     'portable_tel',
     'tel',
     'Email',
+    'Parent Email',
     'portable_email',
     'main_email',
     'Sub Email',
@@ -46,7 +47,9 @@ const MASKED_COLUMNS = [
     'Parent Family Name',
     'Parent First Name',
     'Parent Family Name(katakana)',
-    'Parent First Name(katakana)'
+    'Parent First Name(katakana)',
+    'Web App Log in Id',
+    'Student PC address'
 ];
 
 // Helper function to generate random characters
