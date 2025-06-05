@@ -60,8 +60,8 @@ function derivePhoneNumbers(record) {
     let otherPhone = null;
 
     // Use explicit existence checks rather than truthiness
-    const hasTel = tel !== undefined && tel !== null && tel !== '';
-    const hasPortableTel = portableTel !== undefined && portableTel !== null && portableTel !== '';
+    const hasTel = tel !== undefined && tel !== null && tel !== '' && tel !== '0';
+    const hasPortableTel = portableTel !== undefined && portableTel !== null && portableTel !== '' && portableTel !== '0';
 
     // Both numbers exist
     if (hasTel && hasPortableTel) {
@@ -78,10 +78,10 @@ function derivePhoneNumbers(record) {
     }
     // Check if phone or other_phone already exist
     else {
-        if (record.phone !== undefined && record.phone !== null && record.phone !== '') {
+        if (record.phone !== undefined && record.phone !== null && record.phone !== '' && record.phone !== '0') {
             phone = record.phone;
         }
-        if (record.other_phone !== undefined && record.other_phone !== null && record.other_phone !== '') {
+        if (record.other_phone !== undefined && record.other_phone !== null && record.other_phone !== '' && record.other_phone !== '0') {
             otherPhone = record.other_phone;
         }
     }
@@ -195,6 +195,11 @@ function filterColumns(record) {
             value = transformBranchId(value);
         } else if (column === 'main_school_branch_id' && value) {
             value = transformBranchId(value);
+        } else if (column === 'description') {
+            // Escape commas and wrap with double quotes if value contains comma
+            if (value && typeof value === 'string' && value.includes(',')) {
+                value = `"${value.replace(/"/g, '""')}"`;
+            }
         }
         
         filteredRecord[column] = value;
@@ -370,6 +375,29 @@ async function processStudentData(inputFile) {
                         customerInfoCount++;
                     }
                 } else if (infoRecord) {
+                    // If we have student_info record, check for null values and fill from customer.csv
+                    if (customerId) {
+                        const customerRecord = customerMap.get(customerId);
+                        if (customerRecord) {
+                            // Map the fields from customer.csv to student_info.csv format
+                            const fieldMappings = {
+                                'birthday': 'birthday',
+                                'sex': 'sex',
+                                'phone': 'phone',
+                                'other_phone': 'other_phone',
+                                'main_email': 'main_email',
+                                'sub_email': 'sub_email',
+                                'description': 'description'
+                            };
+
+                            // Fill in null values from customer record
+                            Object.entries(fieldMappings).forEach(([studentInfoField, customerField]) => {
+                                if (!infoRecord[studentInfoField] && customerRecord[customerField]) {
+                                    infoRecord[studentInfoField] = customerRecord[customerField];
+                                }
+                            });
+                        }
+                    }
                     studentInfoCount++;
                 }
                 
