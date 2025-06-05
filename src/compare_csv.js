@@ -2,10 +2,10 @@ import fs from 'fs';
 import { parse } from 'csv-parse/sync';
 import { stringify } from 'csv-stringify/sync';
 
-// Function to compare rows ignoring first two columns
+// Function to compare rows ignoring first column
 function compareRows(row1, row2) {
-    // Skip first two columns and compare the rest
-    for (let i = 2; i < row1.length; i++) {
+    // Skip first column and compare the rest
+    for (let i = 1; i < row1.length; i++) {
         if (row1[i] !== row2[i]) {
             return false;
         }
@@ -73,8 +73,7 @@ function compareCSVFiles(csv1Path, csv2Path, outputPath) {
                     // If values don't match, create new row with first two columns from csv1
                     const newRow = {
                         ...row2,
-                        'MANAERP__Contact_Username_Counter__c': matchingRow1['MANAERP__Contact_Username_Counter__c'],
-                        'MANAERP__Contact_Username_Counter__c_1': matchingRow1['MANAERP__Contact_Username_Counter__c_1']
+                        'MANAERP__Contact_Username_Counter__c': matchingRow1['MANAERP__Contact_Username_Counter__c']
                     };
                     differences.push(newRow);
                 }

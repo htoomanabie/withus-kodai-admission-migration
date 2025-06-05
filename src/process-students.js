@@ -334,13 +334,12 @@ async function processStudentData(inputFile) {
         const outputFilename = 'processed_student_data.csv';
         const incompleteFilename = 'processed_student_data_incomplete.csv';
         
-        // Add counter column and tag column to the headers if needed
-        const headersWithCounter = ['MANAERP__Contact_Username_Counter__c', ...REQUIRED_COLUMNS];
-        const headersWithTag = ADD_TAG_COLUMN ? [...headersWithCounter, 'tag'] : headersWithCounter;
-        const headers = headersWithTag.join(',') + '\n';
+        // Add tag column to the headers if needed
+        const headers = ADD_TAG_COLUMN ? [...REQUIRED_COLUMNS, 'tag'] : REQUIRED_COLUMNS;
+        const headerLine = headers.join(',') + '\n';
         
-        await fs.writeFile(outputFilename, headers);
-        await fs.writeFile(incompleteFilename, headers);
+        await fs.writeFile(outputFilename, headerLine);
+        await fs.writeFile(incompleteFilename, headerLine);
         
         // Process student data in chunks
         const chunks = _.chunk(studentData.data, CHUNK_SIZE);
@@ -426,7 +425,7 @@ async function processStudentData(inputFile) {
             // Convert chunks to CSV
             const processedCsv = processedChunk.map(record => {
                 const counter = currentCounter++;
-                return [counter, ...headersWithTag.slice(1).map(column => {
+                return [counter, ...headers.slice(1).map(column => {
                     const value = record[column];
                     return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : (value ?? '');
                 })].join(',');
@@ -434,7 +433,7 @@ async function processStudentData(inputFile) {
             
             const incompleteCsv = incompleteChunk.map(record => {
                 const counter = currentCounter++;
-                return [counter, ...headersWithTag.slice(1).map(column => {
+                return [counter, ...headers.slice(1).map(column => {
                     const value = record[column];
                     return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : (value ?? '');
                 })].join(',');
@@ -513,10 +512,10 @@ async function renameColumnsInFinalOutput(filename) {
         const headerLine = lines[0];
         const headers = headerLine.split(',');
         
-        // Replace the header line with mapped column names, keeping the counter column first
+        // Replace the header line with mapped column names
         const newHeaderLine = ADD_TAG_COLUMN 
-            ? 'MANAERP__Contact_Username_Counter__c,' + getOutputColumnNames().join(',') + ',tag'
-            : 'MANAERP__Contact_Username_Counter__c,' + getOutputColumnNames().join(',');
+            ? getOutputColumnNames().join(',') + ',tag'
+            : getOutputColumnNames().join(',');
         
         // Create new content with updated header line
         lines[0] = newHeaderLine;
