@@ -223,6 +223,11 @@ function filterColumns(record) {
             // if (value !== null && value !== undefined && value !== '') {
             //     value = 'p' + value;
             // }
+        } else if (column === 'firstname' || column === 'lastname') {
+            // Replace empty firstname or lastname with "不明"
+            if (!value || (typeof value === 'string' && value.trim() === '')) {
+                value = '不明';
+            }
         }
         
         filteredRecord[column] = value;
