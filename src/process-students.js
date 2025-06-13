@@ -182,7 +182,7 @@ function filterColumns(record) {
         } else if (column === 'grade') {
             value = transformGrade(value);
             // Set empty grade values to '-'
-            if (!value || (typeof value === 'string' && value.trim() === '')) {
+            if (!value || (typeof value === 'string' && value.trim() === '') || value === '卒業') {
                 value = '-';
             }
         } else if (column === 'dm_sendable') {
@@ -200,7 +200,7 @@ function filterColumns(record) {
             if (value && typeof value === 'string' && value.includes(',')) {
                 value = `"${value.replace(/"/g, '""')}"`;
             }
-        } else if (column === 'firstname' || column === 'lastname') {
+        } else if (column === 'FirstName' || column === 'LastName' || column === 'fname1' || column === 'fname2' || column === 'kname1' || column === 'kname2') {
             // Replace empty firstname or lastname with "不明"
             if (!value || (typeof value === 'string' && value.trim() === '')) {
                 value = '不明';
