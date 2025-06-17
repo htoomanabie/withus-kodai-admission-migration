@@ -276,6 +276,17 @@ function transformContactPurpose(value, contactType) {
     return value;
 }
 
+// Function to format staff ID with 'U' prefix and zero padding
+function formatStaffId(value) {
+    if (!value) return '';
+    // Remove any existing 'U' prefix and non-numeric characters
+    const numericPart = value.replace(/[^0-9]/g, '');
+    // Pad with zeros to make it 7 digits (since we'll add 'U' prefix)
+    const paddedNumber = numericPart.padStart(7, '0');
+    // Add 'U' prefix
+    return `U${paddedNumber}`;
+}
+
 // Process school_contact.csv file
 async function processSchoolContactFile() {
     try {
@@ -365,7 +376,7 @@ async function processSchoolContactFile() {
                                         
                                         // Assign up to 4 staff IDs to separate columns
                                         for (let j = 0; j < Math.min(staffIds.length, 4); j++) {
-                                            record[`staff_id_${j + 1}`] = staffIds[j];
+                                            record[`staff_id_${j + 1}`] = formatStaffId(staffIds[j]);
                                         }
                                     } 
                                     // Handle special case for contact_person_ids - split into 4 columns

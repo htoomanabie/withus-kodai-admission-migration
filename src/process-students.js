@@ -15,6 +15,7 @@ import {
     transformOperateType,
     transformSex,
     transformBranchId,
+    transformPhone,
     getOutputColumnNames,
     COLUMN_MAPPINGS
 } from './student-mappings.js';
@@ -23,7 +24,7 @@ import {
 const CHUNK_SIZE = 5000; // Smaller chunk size to reduce memory pressure
 const TAG_VALUE = "phase22"; // Configurable tag value - can be changed or removed in final migration
 const ADD_TAG_COLUMN = TAG_VALUE !== ""; // Flag to determine if tag column should be added
-const COUNTER_START = 25000001; // Starting value for the counter column. check from `SELECT Id, MANAERP__Username_Count__c FROM MANAERP__Contact_Username_Counter__c`
+const COUNTER_START = 30000001; // Starting value for the counter column. check from `SELECT Id, MANAERP__Username_Count__c FROM MANAERP__Contact_Username_Counter__c`
 
 // Function to remove dashes from a string
 function removeDashes(str) {
@@ -205,6 +206,8 @@ function filterColumns(record) {
             if (!value || (typeof value === 'string' && value.trim() === '')) {
                 value = '不明';
             }
+        } else if (column === 'phone' || column === 'other_phone') {
+            value = transformPhone(value);
         }
         
         filteredRecord[column] = value;

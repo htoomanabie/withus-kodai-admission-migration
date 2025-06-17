@@ -258,15 +258,21 @@ function cleanRecord(record) {
             continue;
         }
         
+        // Convert to string and clean
+        let cleanedValue = String(value).trim();
+        
+        // Remove surrounding quotes if present
+        cleanedValue = cleanedValue.replace(/^"|"$/g, '');
+        
         // Apply specific cleaning based on field type
         if (key.toLowerCase().includes('email')) {
-            cleanedRecord[key] = cleanEmail(value);
+            cleanedRecord[key] = cleanEmail(cleanedValue);
         } else if (key.toLowerCase().includes('phone') || key.toLowerCase().includes('tel')) {
-            cleanedRecord[key] = cleanPhone(value);
+            cleanedRecord[key] = cleanPhone(cleanedValue);
         } else if (key.toLowerCase().includes('postal') || key.toLowerCase().includes('zip')) {
-            cleanedRecord[key] = cleanPostalCode(value);
+            cleanedRecord[key] = cleanPostalCode(cleanedValue);
         } else {
-            cleanedRecord[key] = cleanString(value);
+            cleanedRecord[key] = cleanString(cleanedValue);
         }
     }
     
@@ -282,8 +288,11 @@ function preprocessCSVContent(content) {
     // Split into lines
     const lines = content.split('\n');
     
+    // Get the expected number of fields from the header
+    const headerFields = lines[0].split(',').length;
+    
     // Process each line
-    return lines.map(line => {
+    return lines.map((line, index) => {
         // Skip empty lines
         if (!line.trim()) return line;
         
@@ -291,6 +300,7 @@ function preprocessCSVContent(content) {
         let processedLine = '';
         let inQuotes = false;
         let currentField = '';
+        let fieldCount = 0;
         
         for (let i = 0; i < line.length; i++) {
             const char = line[i];
@@ -311,6 +321,7 @@ function preprocessCSVContent(content) {
                 // End of field
                 processedLine += currentField + ',';
                 currentField = '';
+                fieldCount++;
             } else {
                 currentField += char;
             }
@@ -318,44 +329,44 @@ function preprocessCSVContent(content) {
         
         // Add the last field
         processedLine += currentField;
+        fieldCount++;
         
-        // Now split into fields and process each one
-        const fields = processedLine.split(',');
-        
-        // Process each field
-        const processedFields = fields.map((field, index) => {
-            // Special handling for Description field (15th field, 0-based index)
-            if (index === 14) {
-                // If the field contains only quotes, return empty string
-                if (field.replace(/"/g, '').trim() === '') {
-                    return '""';
+        // If this is not the header row and we have too many fields, try to fix it
+        if (index > 0 && fieldCount > headerFields) {
+            console.warn(`Warning: Line ${index + 1} has ${fieldCount} fields (expected ${headerFields}). Attempting to fix...`);
+            
+            // Split the line into fields
+            const fields = processedLine.split(',');
+            
+            // If we have too many fields, try to merge the extra fields
+            if (fields.length > headerFields) {
+                // Find the last field that contains a quote
+                let lastQuotedFieldIndex = -1;
+                for (let i = fields.length - 1; i >= 0; i--) {
+                    if (fields[i].includes('"')) {
+                        lastQuotedFieldIndex = i;
+                        break;
+                    }
                 }
-                // Otherwise, properly escape the quotes
-                return `"${field.replace(/^"+|"+$/g, '').replace(/"/g, '""')}"`;
+                
+                // If we found a quoted field, merge all fields after it
+                if (lastQuotedFieldIndex !== -1) {
+                    const extraFields = fields.slice(lastQuotedFieldIndex + 1);
+                    fields[lastQuotedFieldIndex] = fields[lastQuotedFieldIndex] + ',' + extraFields.join(',');
+                    fields.splice(lastQuotedFieldIndex + 1, extraFields.length);
+                }
+                
+                // If we still have too many fields, merge the last fields
+                while (fields.length > headerFields) {
+                    fields[fields.length - 2] = fields[fields.length - 2] + ',' + fields[fields.length - 1];
+                    fields.pop();
+                }
+                
+                processedLine = fields.join(',');
             }
-            
-            // For other fields, ensure proper quote handling
-            if (field.startsWith('"') && field.endsWith('"')) {
-                // Field is already properly quoted
-                return field;
-            } else if (field.includes(',') || field.includes('"')) {
-                // Field needs quoting
-                return `"${field.replace(/"/g, '""')}"`;
-            }
-            
-            return field;
-        });
-        
-        // Ensure we have exactly 17 fields
-        while (processedFields.length < 17) {
-            processedFields.push('');
-        }
-        if (processedFields.length > 17) {
-            processedFields.splice(17);
         }
         
-        // Join fields back together
-        return processedFields.join(',');
+        return processedLine;
     }).join('\n');
 }
 
@@ -371,8 +382,12 @@ async function maskData(inputFile) {
         // Read the input file
         let content = await fs.readFile(inputFile, 'utf8');
         
+        // Get headers from first line
+        const firstLine = content.split('\n')[0];
+        const headers = firstLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        
         // Pre-process the content to fix quote issues
-        console.log('Pre-processing CSV content to fix quote issues...');
+        console.log('Pre-processing CSV content...');
         content = preprocessCSVContent(content);
         
         // Parse the CSV with more lenient options
@@ -419,23 +434,41 @@ async function maskData(inputFile) {
         if (!results.data || results.data.length === 0) {
             throw new Error('No data found in the CSV file');
         }
+
+        // Store original columns
+        const originalColumns = headers;
         
-        console.log('Cleaning data before masking...');
+        console.log('Processing data...');
         
         // Clean and mask sensitive data
         const maskedData = results.data.map((record, index) => {
             try {
-                // First clean the record
-                const cleanedRecord = cleanRecord(record);
+                // Create a new record with all original columns and their values
+                const maskedRecord = {};
                 
-                // Then apply masking
-                const maskedRecord = { ...cleanedRecord };
+                // First, copy all original values
+                originalColumns.forEach(column => {
+                    // Get the original value, preserving empty strings
+                    const originalValue = record[column];
+                    maskedRecord[column] = originalValue !== undefined ? originalValue : '';
+                });
+                
+                // Then clean the record
+                const cleanedRecord = cleanRecord(maskedRecord);
+                
+                // Apply masking only to specified columns
                 MASKED_COLUMNS.forEach(column => {
-                    if (maskedRecord[column] !== undefined) {
-                        maskedRecord[column] = maskValue(maskedRecord[column]);
+                    if (cleanedRecord[column] !== undefined && cleanedRecord[column] !== '') {
+                        cleanedRecord[column] = maskValue(cleanedRecord[column]);
                     }
                 });
-                return maskedRecord;
+
+                // Preserve the __tag column if it exists
+                if (record.__tag !== undefined) {
+                    cleanedRecord.__tag = record.__tag;
+                }
+
+                return cleanedRecord;
             } catch (error) {
                 console.warn(`Warning: Error processing record at index ${index}: ${error.message}`);
                 return record; // Return original record if processing fails
@@ -445,9 +478,10 @@ async function maskData(inputFile) {
         // Create output filename
         const outputFile = inputFile.replace('.csv', '_masked.csv');
         
-        // Convert back to CSV with more robust options
+        // Convert back to CSV using Papa.unparse with explicit configuration
         const csv = Papa.unparse(maskedData, {
             header: true,
+            columns: originalColumns,
             quotes: true,
             quoteChar: '"',
             escapeChar: '"',
@@ -458,12 +492,26 @@ async function maskData(inputFile) {
         // Write the masked data to a new file
         await fs.writeFile(outputFile, csv, 'utf8');
         
+        // Verify the output has all columns and values
+        const outputContent = await fs.readFile(outputFile, 'utf8');
+        const outputResults = Papa.parse(outputContent, { header: true });
+        const outputHeaders = outputResults.meta.fields;
+        
+        // Check for missing columns
+        const missingColumns = originalColumns.filter(col => !outputHeaders.includes(col));
+        if (missingColumns.length > 0) {
+            console.warn('Warning: The following columns are missing from the output:', missingColumns);
+        }
+        
         console.log(`✓ Successfully masked data and saved to ${outputFile}`);
         return {
             success: true,
             totalRecords: maskedData.length,
             maskedColumns: MASKED_COLUMNS,
-            outputFile: outputFile
+            outputFile: outputFile,
+            originalColumns: originalColumns,
+            outputColumns: outputHeaders,
+            missingColumns: missingColumns
         };
     } catch (error) {
         console.error('Error masking data:', error);
