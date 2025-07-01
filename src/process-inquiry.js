@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import Papa from 'papaparse';
 import _ from 'lodash';
 import { createReadStream, createWriteStream } from 'fs';
+import { transformBranchIdNoPadding as transformBranchId } from './student-mappings.js';
 
 // Define the mappings
 // Mapping for inquiry target type (relationship)
@@ -1662,7 +1663,7 @@ const COLUMN_HEADER_MAPPING = {
     'receipt_branch_id': 'Receiver__r:Account:MANAERP__School_Code__c',
     'inquiry_target_type': 'Relationship__c',
     'operate_type_id': 'Student_Category__c',
-    'web_entry_id': 'Admission__r:Admission__c:Admission_External_Id__c',
+    'web_entry_id': 'Admission__r:Admission__c:External_Id__c',
     'inquiry_topic': 'Inquiry_Topic__c',
     'status': 'Status__c',
     'sex': 'Student_Gender__c' // Added sex column header
@@ -2118,8 +2119,21 @@ async function processFiles() {
                             });
                             
                             // Transform charge_staff_id
-                            if (record.charge_staff_id) {
-                                record.charge_staff_id = transformChargeStaffId(record.charge_staff_id);
+                            // if (record.charge_staff_id) {
+                            //     record.charge_staff_id = transformChargeStaffId(record.charge_staff_id);
+                            // }
+
+                            // Transform branch-related columns using transformBranchId
+                            if (record.branch_id) {
+                                record.branch_id = transformBranchId(record.branch_id);
+                            }
+                            
+                            if (record.hope_branch_id) {
+                                record.hope_branch_id = transformBranchId(record.hope_branch_id);
+                            }
+                            
+                            if (record.receipt_branch_id) {
+                                record.receipt_branch_id = transformBranchId(record.receipt_branch_id);
                             }
 
                             // Convert to CSV row

@@ -1,7 +1,12 @@
-const fs = require('fs');
-const csv = require('csv-parse/sync');
-const { stringify } = require('csv-stringify/sync');
-const path = require('path');
+import fs from 'fs';
+import { parse } from 'csv-parse/sync';
+import { stringify } from 'csv-stringify/sync';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Relationship ID mapping
 const relationshipMapping = {
@@ -36,7 +41,7 @@ async function processRelationshipFile() {
         const outputFile = path.join(__dirname, '..', 'processed', 'relationship_processed.csv');
         
         const fileContent = fs.readFileSync(inputFile, 'utf-8');
-        const records = csv.parse(fileContent, {
+        const records = parse(fileContent, {
             columns: true,
             skip_empty_lines: true
         });

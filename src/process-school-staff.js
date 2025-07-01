@@ -18,13 +18,13 @@ const REQUIRED_COLUMNS = [
 
 // Define column header mapping for human-readable output
 const COLUMN_HEADER_MAPPING = {
-    'contact_person_id': 'MANAERP__External_User_Id__c',
+    'contact_person_id': 'School_Staff_External_Id__c',
     'name1': 'FirstName',
     'name2': 'LastName',
-    'post': 'School_Staff_Role__c',
+    'post': 'Role__c',
     'leaved': 'Active__c',
     'class_name': 'Description',
-    'school_id': 'School__r:MANAERP__School__c:MANAERP__School_Partner_Id__c'
+    'school_id': 'MANAERP__Current_School__r:MANAERP__School__c:MANAERP__School_Partner_Id__c'
     // 'RecordTypeId': 'Record Type'
 };
 
@@ -146,6 +146,13 @@ async function processFiles() {
                                         record[column] = transformLeaved(record[column]);
                                     } else {
                                         record[column] = cleanText(record[column]);
+                                    }
+                                }
+                                
+                                // Replace empty FirstName or LastName with "不明"
+                                if (column === 'name1' || column === 'name2') {
+                                    if (!record[column] || (typeof record[column] === 'string' && record[column].trim() === '')) {
+                                        record[column] = '不明';
                                     }
                                 }
                             });
