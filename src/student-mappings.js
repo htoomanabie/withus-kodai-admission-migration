@@ -18,6 +18,7 @@ export const OUTPUT_COLUMN_MAPPING = {
     'fname2': 'MANAERP__First_Name_Phonetic__c',
     'student_id': 'MANAERP__External_User_Id__c',
     'student_no': 'Student_ID_number__c',
+    'customer_id': 'Customer_Id__c',
     'birthday': 'Birthdate',
     'sex': 'GenderIdentity',
     'operate_type_id': 'Student_Category__c',
@@ -173,6 +174,7 @@ export const REQUIRED_COLUMNS = [
     'fname2',
     'student_id',
     'student_no',
+    'customer_id',
     'birthday',
     'sex',
     'operate_type_id',
@@ -486,7 +488,8 @@ export function transformCourseType(value) {
 export function transformOperateType(value) {
     // Convert to string to ensure proper lookup
     const strValue = String(value);
-    return OPERATE_TYPE_MAPPING[strValue] || value;
+    const default_value = '本科';
+    return OPERATE_TYPE_MAPPING[strValue] || default_value;
 }
 
 export function transformSex(value) {

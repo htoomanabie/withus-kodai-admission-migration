@@ -318,8 +318,13 @@ async function processStudentData(inputFile) {
         const studentHistoryData = await readAndParseCSV('student_info_history.csv');
         console.log(`Found ${studentHistoryData.data.length} records in student_info_history.csv`);
         
+
+        
         // Process history records to get latest entries
         console.log('   Processing history records to get latest entries...');
+        
+
+        
         const latestHistoryRecords = _.chain(studentHistoryData.data)
             .groupBy('student_id')
             .mapValues(group => _.maxBy(group, 'created_at'))
@@ -335,6 +340,8 @@ async function processStudentData(inputFile) {
             }
         });
         console.log(`   ✓ Created lookup map for ${historyMap.size} history records`);
+        
+
         
         // Free memory
         studentHistoryData.data = [];
@@ -419,6 +426,11 @@ async function processStudentData(inputFile) {
                         ...student
                     };
                     
+                    // Ensure customer_id is set properly for incomplete records
+                    if (customerId) {
+                        incompleteRecord.customer_id = customerId;
+                    }
+                    
                     // Apply transformations
                     const filteredRecord = filterColumns(incompleteRecord);
                     
@@ -431,20 +443,29 @@ async function processStudentData(inputFile) {
                 } else {
                     // Check for operate_type_id in student_info_history.csv
                     const historyRecord = historyMap.get(studentId);
-                    if (historyRecord && historyRecord.operate_type_id) {
-                        // Apply the operate_type_id from history
-                        infoRecord.operate_type_id = historyRecord.operate_type_id;
-                        historyOperateTypeCount++;
+                    if (historyRecord) {
+                        // Handle the case where operate_type_id might have \r character
+                        const operateTypeId = historyRecord.operate_type_id || historyRecord['operate_type_id\r'];
+                        if (operateTypeId) {
+                            // Apply the operate_type_id from history
+                            infoRecord.operate_type_id = operateTypeId;
+                            historyOperateTypeCount++;
+                        }
                     }
                     
-                    // Combine student data with info
-                    const combinedRecord = {
-                        ...student,
-                        ...infoRecord
-                    };
-                    
-                    // Ensure student_id is set properly
-                    combinedRecord.student_id = studentId;
+                                    // Combine student data with info
+                const combinedRecord = {
+                    ...student,
+                    ...infoRecord
+                };
+                
+                // Ensure student_id is set properly
+                combinedRecord.student_id = studentId;
+                
+                // Ensure customer_id is set properly
+                if (customerId) {
+                    combinedRecord.customer_id = customerId;
+                }
                     
                     // Apply transformations
                     const filteredRecord = filterColumns(combinedRecord);
