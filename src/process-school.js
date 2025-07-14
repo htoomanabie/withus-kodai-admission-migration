@@ -103,7 +103,7 @@ function transformCurlmId(value) {
 function transformPrefecture(value) {
     // Convert to string to ensure proper lookup
     const strValue = String(value);
-    return PREFECTURE_MAPPING[strValue] || value;
+    return PREFECTURE_MAPPING[strValue] || '';
 }
 
 // Function to transform phone number to integers only

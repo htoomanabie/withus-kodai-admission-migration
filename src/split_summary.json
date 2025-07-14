@@ -1,0 +1,33 @@
+{
+  "originalFile": "/Users/htoomaung/Repository/withus-kodai-admission-migration/processed/rehearsal3/log/school-vist-initial-log.csv",
+  "totalRows": 336382,
+  "numFiles": 4,
+  "rowsPerFile": 100000,
+  "files": [
+    {
+      "fileName": "school-vist-initial-log_06-26-2025 10-06_1.csv",
+      "rowCount": 100000,
+      "startRow": 1,
+      "endRow": 100000
+    },
+    {
+      "fileName": "school-vist-initial-log_06-26-2025 10-06_2.csv",
+      "rowCount": 100000,
+      "startRow": 100001,
+      "endRow": 200000
+    },
+    {
+      "fileName": "school-vist-initial-log_06-26-2025 10-06_3.csv",
+      "rowCount": 100000,
+      "startRow": 200001,
+      "endRow": 300000
+    },
+    {
+      "fileName": "school-vist-initial-log_06-26-2025 10-06_4.csv",
+      "rowCount": 36382,
+      "startRow": 300001,
+      "endRow": 336382
+    }
+  ],
+  "timestamp": "2025-06-26T02:06:39.884Z"
+}
