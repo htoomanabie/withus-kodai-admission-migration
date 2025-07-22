@@ -20,6 +20,22 @@ const INQUIRY_TARGET_TYPE_MAPPING = {
     '11': 'その他'
 };
 
+const INQUIRY_TOPIC_MAPPING = {
+    '0': '再問合せ',
+    '1': '資料送付',
+    '2': 'AP',
+    '3': '面談',
+    '4': 'OS・学説等',
+    '5': '電話面談',
+    '6': '再来校',
+    '7': '出願AP',
+    '8': 'AOエントリー',
+    '9': '志願者登録',
+    '10': '出願',
+    '11': '(出願・)入試',
+    '12': '新規問い合わせ',
+}
+
 // Mapping for inquiry way (method)
 const INQUIRY_WAY_MAPPING = {
     '1': '電話',
@@ -1633,7 +1649,7 @@ const REQUIRED_COLUMNS = [
     'inquiry_target_type',
     'operate_type_id',
     'web_entry_id',
-    'inquiry_topic',
+    'process_type',
     'status',
     'rank',
     'result_type',
@@ -1679,7 +1695,7 @@ const COLUMN_HEADER_MAPPING = {
     'inquiry_target_type': 'Relationship__c',
     'operate_type_id': 'Student_Category__c',
     'web_entry_id': 'Admission__r:Admission__c:Admission_External_Id__c',
-    'inquiry_topic': 'Inquiry_Topic__c',
+    'process_type': 'Inquiry_Topic__c',
     'status': 'Status__c',
     'rank': 'Inquiry_Rank__c',
     'result_type': 'Result__c',
@@ -1690,6 +1706,12 @@ const COLUMN_HEADER_MAPPING = {
 function transformSex(value) {
     const strValue = String(value);
     return SEX_MAPPING[strValue] || value;
+}
+
+// Function to transform process_type using INQUIRY_TOPIC_MAPPING
+function transformProcessType(value) {
+    let strValue = String(value);
+    return INQUIRY_TOPIC_MAPPING[strValue] || value;
 }
 
 // Transform inquiry target type (relationship)
@@ -1986,13 +2008,15 @@ async function processFiles() {
                     if (row.student_id) {
                         const studentId = String(row.student_id);
                         
-                        // Try different possible field names for rank and result_type
+                        // Try different possible field names for rank, result_type, and process_type
                         const rankValue = row.rank || row.Rank || row.RANK || '';
                         const resultTypeValue = row.result_type || row.resultType || row.Result_Type || row.RESULT_TYPE || '';
+                        const processTypeValue = row.process_type || row.processType || row.Process_Type || row.PROCESS_TYPE || '';
                         
                         const processData = {
                             rank: rankValue,
-                            result_type: resultTypeValue
+                            result_type: resultTypeValue,
+                            process_type: processTypeValue
                         };
                         processDataMap.set(studentId, processData);
                         
@@ -2000,16 +2024,16 @@ async function processFiles() {
                     }
                 });
                 
-                console.log(`   ✓ Built mapping for ${processDataMap.size} process records with rank and result_type values`);
+                console.log(`   ✓ Built mapping for ${processDataMap.size} process records with rank, result_type, and process_type values`);
                 
                 // Count records with actual values
                 let recordsWithValues = 0;
                 processDataMap.forEach((data, studentId) => {
-                    if (data.rank || data.result_type) {
+                    if (data.rank || data.result_type || data.process_type) {
                         recordsWithValues++;
                     }
                 });
-                console.log(`   Records with actual rank/result_type values: ${recordsWithValues}`);
+                console.log(`   Records with actual rank/result_type/process_type values: ${recordsWithValues}`);
                 
                 // Process CSV data loaded successfully
             }
@@ -2139,15 +2163,16 @@ async function processFiles() {
                                 }
                             }
 
-                            // Read rank and result_type directly from process.csv using student_id as key
+                            // Read rank, result_type, and process_type directly from process.csv using student_id as key
                             if (record.student_id) {
                                 const studentId = String(record.student_id).trim();
                                 
                                 // Look up the student_id in process.csv
                                 if (processDataMap.has(studentId)) {
                                     const processData = processDataMap.get(studentId);
-                                    // Set rank and result_type from process.csv
+                                    // Set rank, result_type, and process_type from process.csv
                                     record.rank = processData.rank || '';
+                                    record.process_type = processData.process_type || '';
                                     
                                     processDataMatchCount++;
                                     
@@ -2155,7 +2180,7 @@ async function processFiles() {
                                 } else {
                                     // If no match found, set empty values
                                     record.rank = '';
-                                    
+                                    record.process_type = '';
                                 }
                             }
 
@@ -2165,19 +2190,37 @@ async function processFiles() {
                                 record.result_type = '';
                             }
 
-                            // Add operate_type_id from student_info_history.csv
-                            if (record.student_id) {
+                                                        // Add operate_type_id from student_info_history.csv
+                            if (record.student_id && record.student_id !== '') {
                                 const studentId = String(record.student_id).trim();
                                 
                                 if (studentHistoryMap.has(studentId)) {
-                                    record.operate_type_id = transformOperateType(studentHistoryMap.get(studentId));
+                                    const historyValue = studentHistoryMap.get(studentId);
+                                    record.operate_type_id = transformOperateType(historyValue);
+                                    
+                                    if(record.operate_type_id === '') {
+                                        console.log('blank operate_type_id', studentId);
+                                        record.operate_type_id = '本科';
+                                    }
+
                                     studentHistoryMatchCount++;
+                                } else {
+                                    // If no match found, set default value to '本科'
+                                    record.operate_type_id = '本科';
                                 }
+                            } else {
+                                // If no student_id, set default value to '本科'
+                                record.operate_type_id = '本科';
                             }
                             
                             // Add the two new columns with fixed values
-                            record.inquiry_topic = '新規問い合わせ';
+                            // record.inquiry_topic = '新規問い合わせ';
                             record.status = '対応済';
+                            
+                            // Ensure operate_type_id is always set
+                            if (!record.operate_type_id || record.operate_type_id === '') {
+                                record.operate_type_id = '本科';
+                            }
 
                             // Apply transformations
                             if (record.pref_id) {
@@ -2254,6 +2297,11 @@ async function processFiles() {
                                 record.inquiry_target_type = transformInquiryTargetType(record.inquiry_target_type);
                             }
 
+                            // Transform process_type using INQUIRY_TOPIC_MAPPING
+                            if (record.process_type) {
+                                record.process_type = transformProcessType(record.process_type);
+                            }
+
                             // Format inquiry_at date
                             if (record.inquiry_at) {
                                 record.inquiry_at = formatDate(record.inquiry_at);
@@ -2284,6 +2332,11 @@ async function processFiles() {
                             // Record processing complete
                             
                             // Convert to CSV row
+                            // Final safety check - ensure operate_type_id is always set
+                            if (!record.operate_type_id || record.operate_type_id === '') {
+                                record.operate_type_id = '本科';
+                            }
+                            
                             const csvRow = REQUIRED_COLUMNS.map(column => {
                                 const value = record[column];
                                 return typeof value === 'string' ? 
