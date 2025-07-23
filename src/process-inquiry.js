@@ -1705,7 +1705,7 @@ const COLUMN_HEADER_MAPPING = {
 // Function to transform sex values
 function transformSex(value) {
     const strValue = String(value);
-    return SEX_MAPPING[strValue] || value;
+    return SEX_MAPPING[strValue] || '不明';
 }
 
 // Function to transform process_type using INQUIRY_TOPIC_MAPPING
@@ -1717,7 +1717,7 @@ function transformProcessType(value) {
 // Transform inquiry target type (relationship)
 function transformInquiryTargetType(value) {
     const strValue = String(value);
-    return INQUIRY_TARGET_TYPE_MAPPING[strValue] || value;
+    return INQUIRY_TARGET_TYPE_MAPPING[strValue] || 'その他';
 }
 
 // Transform inquiry way (method)
@@ -1989,6 +1989,7 @@ async function processFiles() {
         // Step 3: Process process.csv to get branch_id, rank, and result_type
         console.log('\n3. Processing process.csv...');
         const processDataMap = new Map();
+        let processDataForOutput = null; // Store process data for later use
 
         try {
             // Read and parse process.csv
@@ -1998,6 +1999,7 @@ async function processFiles() {
                 skipEmptyLines: true,
                 dynamicTyping: true
             });
+            processDataForOutput = processData; // Store for later use
             
             if (processData.data.length === 0) {
                 console.log('process.csv has no data rows');
@@ -2011,7 +2013,10 @@ async function processFiles() {
                         // Try different possible field names for rank, result_type, and process_type
                         const rankValue = row.rank || row.Rank || row.RANK || '';
                         const resultTypeValue = row.result_type || row.resultType || row.Result_Type || row.RESULT_TYPE || '';
-                        const processTypeValue = row.process_type || row.processType || row.Process_Type || row.PROCESS_TYPE || '';
+                        const processTypeValue = (row.process_type !== null && row.process_type !== undefined) ? row.process_type : 
+                                                 (row.processType !== null && row.processType !== undefined) ? row.processType :
+                                                 (row.Process_Type !== null && row.Process_Type !== undefined) ? row.Process_Type :
+                                                 (row.PROCESS_TYPE !== null && row.PROCESS_TYPE !== undefined) ? row.PROCESS_TYPE : '';
                         
                         const processData = {
                             rank: rankValue,
@@ -2172,15 +2177,15 @@ async function processFiles() {
                                     const processData = processDataMap.get(studentId);
                                     // Set rank, result_type, and process_type from process.csv
                                     record.rank = processData.rank || '';
-                                    record.process_type = processData.process_type || '';
+                                    record.process_type = (processData.process_type !== null && processData.process_type !== undefined && processData.process_type !== '') ? processData.process_type : '新規問い合わせ';
                                     
                                     processDataMatchCount++;
                                     
                                     // Process data match found and values set
                                 } else {
-                                    // If no match found, set empty values
+                                    // If no match found, set default values
                                     record.rank = '';
-                                    record.process_type = '';
+                                    record.process_type = '新規問い合わせ';
                                 }
                             }
 
@@ -2236,6 +2241,8 @@ async function processFiles() {
                             // Process claim column separately to transform "f" to "FALSE"
                             if (record.claim) {
                                 record.claim = transformClaim(record.claim);
+                            } else {
+                                record.claim = 'FALSE';
                             }
                             
                             // Keep inquiry_reason_id as original value from inquiry.csv
@@ -2298,8 +2305,10 @@ async function processFiles() {
                             }
 
                             // Transform process_type using INQUIRY_TOPIC_MAPPING
-                            if (record.process_type) {
+                            if (record.process_type !== null && record.process_type !== undefined && record.process_type !== '') {
                                 record.process_type = transformProcessType(record.process_type);
+                            } else {
+                                record.process_type = '新規問い合わせ';
                             }
 
                             // Format inquiry_at date
@@ -2311,6 +2320,13 @@ async function processFiles() {
                             ['claim', 'comment'].forEach(column => {
                                 if (record[column]) {
                                     record[column] = cleanText(record[column]);
+                                }
+                            });
+                            
+                            // Set '不明' for empty name fields
+                            ['kname1', 'kname2', 'fname1', 'fname2'].forEach(column => {
+                                if (!record[column] || record[column].trim() === '') {
+                                    record[column] = '不明';
                                 }
                             });
                             
@@ -2365,10 +2381,120 @@ async function processFiles() {
                     }
                 },
                 complete: function() {
+                    // Now process ALL records from process.csv as separate records
+                    console.log('\n6. Processing ALL process.csv records as separate records...');
+                    
+                    let processRecordCount = 0;
+                    processDataForOutput.data.forEach(row => {
+                        if (row.student_id) {
+                            const studentId = String(row.student_id);
+                            
+                            // Try different possible field names for all process.csv fields
+                            const rankValue = row.rank || row.Rank || row.RANK || '';
+                            const resultTypeValue = row.result_type || row.resultType || row.Result_Type || row.RESULT_TYPE || '';
+                            const processTypeValue = (row.process_type !== null && row.process_type !== undefined) ? row.process_type : 
+                                                     (row.processType !== null && row.processType !== undefined) ? row.processType :
+                                                     (row.Process_Type !== null && row.Process_Type !== undefined) ? row.Process_Type :
+                                                     (row.PROCESS_TYPE !== null && row.PROCESS_TYPE !== undefined) ? row.PROCESS_TYPE : '';
+                            const processIdValue = row.process_id || row.processId || row.Process_Id || row.PROCESS_ID || '';
+                            const dateValue = row.date || row.Date || row.DATE || '';
+                            const targetTypeValue = row.target_type || row.Target_Type || row.TARGET_TYPE || '';
+                            const appointWayValue = row.appoint_way || row.Appoint_Way || row.APPOINT_WAY || '';
+                            const branchIdValue = row.branch_id || row.Branch_Id || row.BRANCH_ID || '';
+                            const staffIdValue = row.staff_id || row.Staff_Id || row.STAFF_ID || '';
+                            const claimValue = row.claim || row.Claim || row.CLAIM || '';
+                            const commentValue = row.comment || row.Comment || row.COMMENT || '';
+                            
+                            // Create a new record from process data
+                            const processRecord = {
+                                student_id: studentId,
+                                inquiry_id: processIdValue || '',
+                                rank: rankValue || '',
+                                result_type: resultTypeValue ? (RESULT_TYPE_MAPPING[resultTypeValue] || resultTypeValue) : '',
+                                process_type: (processTypeValue !== null && processTypeValue !== undefined && processTypeValue !== '') ? transformProcessType(processTypeValue) : '新規問い合わせ',
+                                // Set other required fields to empty or default values
+                                address3: '',
+                                address1: '',
+                                pref_id: '',
+                                zip_cd: '',
+                                address2: '',
+                                branch_id: branchIdValue ? transformBranchId(branchIdValue) : '',
+                                portable_email: '',
+                                portable_tel: '',
+                                claim: claimValue ? transformClaim(claimValue) : 'FALSE',
+                                comment: commentValue ? cleanText(commentValue) : '',
+                                hope_branch_id: '',
+                                inquiry_reason_id: '',
+                                inquiry_reason_id_category: '',
+                                kname2: '',
+                                fname2: '',
+                                kname1: '',
+                                fname1: '',
+                                inquiry_at: dateValue ? formatDate(dateValue) : '',
+                                media_type1: '',
+                                media_type1_detail: '',
+                                inquiry_way_id: appointWayValue ? transformInquiryWay(appointWayValue) : 'その他',
+                                parent_id: '',
+                                email: '',
+                                charge_staff_id: staffIdValue ? transformChargeStaffId(staffIdValue) : '',
+                                tel: '',
+                                inquiry_reason_id1: '',
+                                inquiry_reason_id1_category: '',
+                                inquiry_reason_id2: '',
+                                inquiry_reason_id2_category: '',
+                                inquiry_reason_id3: '',
+                                inquiry_reason_id3_category: '',
+                                receipt_branch_id: '',
+                                inquiry_target_type: targetTypeValue ? transformInquiryTargetType(targetTypeValue) : 'その他',
+                                operate_type_id: '本科',
+                                web_entry_id: '',
+                                status: '対応済',
+                                sex: ''
+                            };
+                            
+                            // Get operate_type_id from student_info_history.csv
+                            if (studentHistoryMap.has(studentId)) {
+                                const historyValue = studentHistoryMap.get(studentId);
+                                processRecord.operate_type_id = transformOperateType(historyValue);
+                                if (!processRecord.operate_type_id || processRecord.operate_type_id === '') {
+                                    processRecord.operate_type_id = '本科';
+                                }
+                            }
+                            
+                            // Get sex from student_info.csv
+                            if (studentSexMap.has(studentId)) {
+                                const sexValue = studentSexMap.get(studentId);
+                                processRecord.sex = transformSex(sexValue);
+                            }
+                            
+                            // Set '不明' for empty name fields in process records
+                            ['kname1', 'kname2', 'fname1', 'fname2'].forEach(column => {
+                                if (!processRecord[column] || processRecord[column].trim() === '') {
+                                    processRecord[column] = '不明';
+                                }
+                            });
+                            
+                            // Convert to CSV row
+                            const csvRow = REQUIRED_COLUMNS.map(column => {
+                                const value = processRecord[column];
+                                return typeof value === 'string' ? 
+                                    `"${value.replace(/"/g, '""')}"` : 
+                                    (value !== null && value !== undefined ? value : '');
+                            }).join(',') + '\n';
+                            
+                            // Write to output file
+                            outputStream.write(csvRow);
+                            processedCount++;
+                            processRecordCount++;
+                        }
+                    });
+                    
+                    console.log(`   ✓ Completed processing ${processRecordCount} process records`);
+                    
                     outputStream.end();
                     
                     // Final progress report
-                    console.log(`   ✓ Completed processing ${processedCount} inquiry records (${webEntryIdMatchCount} with web_entry_id, ${processDataMatchCount} with process data, ${studentHistoryMatchCount} with student history data)`);
+                    console.log(`   ✓ Completed processing ${processedCount} total records (${webEntryIdMatchCount} with web_entry_id, ${processDataMatchCount} with process data, ${studentHistoryMatchCount} with student history data)`);
                     
                     console.log('\nFinal Summary:');
                     console.log('-------------');
