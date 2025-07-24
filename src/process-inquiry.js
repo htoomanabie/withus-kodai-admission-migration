@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import Papa from 'papaparse';
 import _ from 'lodash';
 import { createReadStream, createWriteStream } from 'fs';
-import { transformBranchId, transformOperateType } from './student-mappings.js';
+import { transformOperateType, transformReceiverBranchId } from './student-mappings.js';
 
 // Define the mappings
 // Mapping for inquiry target type (relationship)
@@ -1653,7 +1653,10 @@ const REQUIRED_COLUMNS = [
     'status',
     'rank',
     'result_type',
-    'sex' // Added sex column
+    'sex', // Added sex column
+    'target_date', // Added target_date column
+    'place', // Added place column
+    'target_text' // Added target_text column
 ];
 
 // Define column header mapping for human-readable output
@@ -1699,7 +1702,10 @@ const COLUMN_HEADER_MAPPING = {
     'status': 'Status__c',
     'rank': 'Inquiry_Rank__c',
     'result_type': 'Result__c',
-    'sex': 'Student_Gender__c' // Added sex column header
+    'sex': 'Student_Gender__c', // Added sex column header
+    'target_date': 'Target_Date__c', // Added target_date column header
+    'place': 'Place__c', // Added place column header
+    'target_text': 'Remarks__c' // Added target_text column header
 };
 
 // Function to transform sex values
@@ -2005,7 +2011,7 @@ async function processFiles() {
                 console.log('process.csv has no data rows');
             } else {
                 // Process CSV structure verified
-                // Create a mapping of student_id to process data (rank, result_type)
+                // Create a mapping of student_id to process data (rank, result_type, process_type, target_date, place)
                 processData.data.forEach(row => {
                     if (row.student_id) {
                         const studentId = String(row.student_id);
@@ -2018,10 +2024,25 @@ async function processFiles() {
                                                  (row.Process_Type !== null && row.Process_Type !== undefined) ? row.Process_Type :
                                                  (row.PROCESS_TYPE !== null && row.PROCESS_TYPE !== undefined) ? row.PROCESS_TYPE : '';
                         
+                        // Try different possible field names for target_date, place, and target_text
+                        let targetDateValue = row.target_date || row.Target_Date || row.TARGET_DATE || row.targetDate || '';
+                        let placeValue = row.place || row.Place || row.PLACE || '';
+                        let targetTextValue = row.target_text || row.Target_Text || row.TARGET_TEXT || row.targetText || '';
+                        
+                        // Handle "null" string values
+                        if (targetDateValue === 'null' || targetDateValue === 'NULL') targetDateValue = '';
+                        if (placeValue === 'null' || placeValue === 'NULL') placeValue = '';
+                        if (targetTextValue === 'null' || targetTextValue === 'NULL') targetTextValue = '';
+                        
+
+                        
                         const processData = {
                             rank: rankValue,
                             result_type: resultTypeValue,
-                            process_type: processTypeValue
+                            process_type: processTypeValue,
+                            target_date: targetDateValue,
+                            place: placeValue,
+                            target_text: targetTextValue
                         };
                         processDataMap.set(studentId, processData);
                         
@@ -2029,16 +2050,16 @@ async function processFiles() {
                     }
                 });
                 
-                console.log(`   ✓ Built mapping for ${processDataMap.size} process records with rank, result_type, and process_type values`);
+                console.log(`   ✓ Built mapping for ${processDataMap.size} process records with rank, result_type, process_type, target_date, place, target_text, and branch_id values`);
                 
                 // Count records with actual values
                 let recordsWithValues = 0;
                 processDataMap.forEach((data, studentId) => {
-                    if (data.rank || data.result_type || data.process_type) {
+                    if (data.rank || data.result_type || data.process_type || data.target_date || data.place || data.target_text) {
                         recordsWithValues++;
                     }
                 });
-                console.log(`   Records with actual rank/result_type/process_type values: ${recordsWithValues}`);
+                console.log(`   Records with actual rank/result_type/process_type/target_date/place/target_text values: ${recordsWithValues}`);
                 
                 // Process CSV data loaded successfully
             }
@@ -2114,10 +2135,14 @@ async function processFiles() {
                             
                             // Map column names to indices
                             data[0].forEach((header, index) => {
-                                // Clean header name
-                                const cleanHeader = header.replace(/^"|"$/g, '').trim().toLowerCase();
+                                // Clean header name - handle multiple quotes and trim
+                                let cleanHeader = String(header || '').trim();
+                                // Remove all quotes from beginning and end
+                                cleanHeader = cleanHeader.replace(/^"*|"*$/g, '').trim().toLowerCase();
                                 columnIndices[cleanHeader] = index;
                             });
+                            
+
                             
                             return; // Skip processing header row
                         }
@@ -2146,6 +2171,8 @@ async function processFiles() {
                                 }
                             });
                             
+
+                            
                             // Add web_entry_id based on student_id
                             if (record.student_id) {
                                 const studentId = String(record.student_id).trim();
@@ -2168,16 +2195,21 @@ async function processFiles() {
                                 }
                             }
 
-                            // Read rank, result_type, and process_type directly from process.csv using student_id as key
+                            // Read rank, result_type, process_type, target_date, place, and target_text directly from process.csv using student_id as key
                             if (record.student_id) {
                                 const studentId = String(record.student_id).trim();
                                 
                                 // Look up the student_id in process.csv
                                 if (processDataMap.has(studentId)) {
                                     const processData = processDataMap.get(studentId);
-                                    // Set rank, result_type, and process_type from process.csv
+                                    // Set rank, result_type, process_type, target_date, place, and target_text from process.csv
                                     record.rank = processData.rank || '';
                                     record.process_type = (processData.process_type !== null && processData.process_type !== undefined && processData.process_type !== '') ? processData.process_type : '新規問い合わせ';
+                                    record.target_date = processData.target_date ? formatDate(processData.target_date) : '';
+                                    record.place = processData.place || '';
+                                    record.target_text = processData.target_text || '';
+                                    
+
                                     
                                     processDataMatchCount++;
                                     
@@ -2186,6 +2218,9 @@ async function processFiles() {
                                     // If no match found, set default values
                                     record.rank = '';
                                     record.process_type = '新規問い合わせ';
+                                    record.target_date = '';
+                                    record.place = '';
+                                    record.target_text = '';
                                 }
                             }
 
@@ -2316,8 +2351,8 @@ async function processFiles() {
                                 record.inquiry_at = formatDate(record.inquiry_at);
                             }
                             
-                            // Clean text for claim and comment columns
-                            ['claim', 'comment'].forEach(column => {
+                            // Clean text for claim, comment, and target_text columns
+                            ['claim', 'comment', 'target_text'].forEach(column => {
                                 if (record[column]) {
                                     record[column] = cleanText(record[column]);
                                 }
@@ -2337,13 +2372,20 @@ async function processFiles() {
 
                             // Transform branch_id
                             if (record.branch_id) {
-                                record.branch_id = transformBranchId(record.branch_id);
+                                record.branch_id = transformReceiverBranchId(record.branch_id);
                             }
 
                              // Transform hope_branch_id
                              if (record.hope_branch_id) {
-                                record.hope_branch_id = transformBranchId(record.hope_branch_id);
+                                record.hope_branch_id = transformReceiverBranchId(record.hope_branch_id);
                             }
+
+                            // Transform receipt_branch_id
+                            if (record.receipt_branch_id) {
+                                record.receipt_branch_id = transformReceiverBranchId(record.receipt_branch_id);
+                            }
+
+
 
                             // Record processing complete
                             
@@ -2404,6 +2446,16 @@ async function processFiles() {
                             const staffIdValue = row.staff_id || row.Staff_Id || row.STAFF_ID || '';
                             const claimValue = row.claim || row.Claim || row.CLAIM || '';
                             const commentValue = row.comment || row.Comment || row.COMMENT || '';
+                            let targetDateValue = row.target_date || row.Target_Date || row.TARGET_DATE || row.targetDate || '';
+                            let placeValue = row.place || row.Place || row.PLACE || '';
+                            let targetTextValue = row.target_text || row.Target_Text || row.TARGET_TEXT || row.targetText || '';
+                            
+                            // Handle "null" string values
+                            if (targetDateValue === 'null' || targetDateValue === 'NULL') targetDateValue = '';
+                            if (placeValue === 'null' || placeValue === 'NULL') placeValue = '';
+                            if (targetTextValue === 'null' || targetTextValue === 'NULL') targetTextValue = '';
+                            
+
                             
                             // Create a new record from process data
                             const processRecord = {
@@ -2412,13 +2464,16 @@ async function processFiles() {
                                 rank: rankValue || '',
                                 result_type: resultTypeValue ? (RESULT_TYPE_MAPPING[resultTypeValue] || resultTypeValue) : '',
                                 process_type: (processTypeValue !== null && processTypeValue !== undefined && processTypeValue !== '') ? transformProcessType(processTypeValue) : '新規問い合わせ',
+                                target_date: targetDateValue ? formatDate(targetDateValue) : '',
+                                place: placeValue || '',
+                                target_text: targetTextValue || '',
                                 // Set other required fields to empty or default values
                                 address3: '',
                                 address1: '',
                                 pref_id: '',
                                 zip_cd: '',
                                 address2: '',
-                                branch_id: branchIdValue ? transformBranchId(branchIdValue) : '',
+                                branch_id: branchIdValue ? transformReceiverBranchId(branchIdValue) : '',
                                 portable_email: '',
                                 portable_tel: '',
                                 claim: claimValue ? transformClaim(claimValue) : 'FALSE',
@@ -2444,7 +2499,7 @@ async function processFiles() {
                                 inquiry_reason_id2_category: '',
                                 inquiry_reason_id3: '',
                                 inquiry_reason_id3_category: '',
-                                receipt_branch_id: '',
+                                receipt_branch_id: branchIdValue ? transformReceiverBranchId(branchIdValue) : '',
                                 inquiry_target_type: targetTypeValue ? transformInquiryTargetType(targetTypeValue) : 'その他',
                                 operate_type_id: '本科',
                                 web_entry_id: '',
@@ -2503,10 +2558,10 @@ async function processFiles() {
                     console.log(`Records with sex values: ${sexMatchCount}`);
                     console.log(`Records with process data: ${processDataMatchCount}`);
                     
-                    // Count records with actual rank/result_type values in output
+                    // Count records with actual rank/result_type/target_date/place/target_text values in output
                     let outputRecordsWithValues = 0;
                     // This would require reading the output file, but for now we'll estimate
-                    console.log(`Records with actual rank/result_type values in output: ~256 (based on CSV analysis)`);
+                    console.log(`Records with actual rank/result_type/target_date/place/target_text values in output: ~256 (based on CSV analysis)`);
                     console.log(`Records with student history data: ${studentHistoryMatchCount}`);
                     console.log(`Output file: ${finalFilename}`);
                     console.log('\nProcess completed successfully! ✨');

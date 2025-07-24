@@ -484,6 +484,10 @@ export function transformBranchId(value) {
     return padToSixDigits(mappedValue);
 }
 
+export function transformReceiverBranchId(value) {
+    const strValue = String(value).trim();
+    return BRANCH_ID_MAPPING[strValue] || value;
+}
 export function transformMainSchoolBranchId(value) {
     return padToSixDigits(value);
 }
