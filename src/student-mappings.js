@@ -514,6 +514,10 @@ export function transformBranchIdNoPadding(value) {
     // Then pad it to 6 digits
     return mappedValue;
 }
+export function transformReceiverBranchId(value) {
+    const strValue = String(value).trim();
+    return BRANCH_ID_MAPPING[strValue] || value;
+}
 export function transformMainSchoolBranchId(value) {
     return padToSixDigits(value);
 }
