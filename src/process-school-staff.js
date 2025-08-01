@@ -19,8 +19,8 @@ const REQUIRED_COLUMNS = [
 // Define column header mapping for human-readable output
 const COLUMN_HEADER_MAPPING = {
     'contact_person_id': 'School_Staff_External_Id__c',
-    'name1': 'FirstName',
-    'name2': 'LastName',
+    'name1': 'LastName',
+    'name2': 'FirstName',
     'post': 'Role__c',
     'leaved': 'Active__c',
     'class_name': 'Description',

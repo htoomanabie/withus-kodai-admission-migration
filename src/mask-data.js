@@ -86,17 +86,18 @@ function maskName(name, preserveLength = true) {
   // If empty after trimming, return empty string
   if (!nameStr) return '';
   
-  // For very short names (1-2 characters), use fixed mask
-  if (nameStr.length <= 2) {
-    return generateRandomChars(2);
+  // For very short names (1 character), don't mask
+  if (nameStr.length <= 1) {
+    return nameStr;
   }
   
-  // For longer names, preserve first character and mask the rest
+  // For longer names, preserve only the first character, mask everything else
   // If preserveLength is true, generate exactly the same length as original
   const firstChar = nameStr.charAt(0);
+  
   const maskedPart = preserveLength 
     ? generateRandomChars(nameStr.length - 1)
-    : generateRandomChars(8);
+    : generateRandomChars(7);
     
   return firstChar + maskedPart;
 }
@@ -122,20 +123,25 @@ function maskEmail(email) {
   if (!match) {
     // If not a standard email format, use basic masking
     if (emailStr.length <= 3) return `${generateRandomChars(3)}@${PLACEHOLDER_DOMAIN}`;
-    return emailStr.charAt(0) + generateRandomChars(8) + emailStr.charAt(emailStr.length - 1) + `@${PLACEHOLDER_DOMAIN}`;
+    // Keep first 3 characters if possible, otherwise keep what we have and mask the rest
+    const preserveChars = Math.min(3, emailStr.length);
+    const preserved = emailStr.slice(0, preserveChars);
+    const masked = generateRandomChars(Math.max(0, emailStr.length - preserveChars));
+    return preserved + masked + `@${PLACEHOLDER_DOMAIN}`;
   }
   
   // Extract username and domain parts
   const [, username] = match;
   
-  // Mask username part, keep first and last character if long enough
+  // Mask username part, keep first 3 characters if long enough
   let maskedUsername;
-  if (username.length <= 2) {
-    maskedUsername = generateRandomChars(username.length);
+  if (username.length <= 3) {
+    // For usernames with 3 or fewer characters, don't mask (too short to safely mask)
+    maskedUsername = username;
   } else {
-    maskedUsername = username.charAt(0) + 
-                     generateRandomChars(username.length - 2) + 
-                     username.charAt(username.length - 1);
+    // For longer usernames, keep first 3 characters
+    maskedUsername = username.slice(0, 3) + 
+                     generateRandomChars(username.length - 3);
   }
   
   // Use fixed placeholder domain
@@ -162,8 +168,9 @@ function maskValue(value) {
     
     // For phone numbers and zip codes
     if (/^\d+$/.test(value)) {
-        if (value.length <= 5) return value;
-        return generateRandomIntegers(value.length);
+        if (value.length <= 3) return value;
+        // Keep last 3 digits, mask the beginning
+        return generateRandomIntegers(value.length - 3) + value.slice(-3);
     }
     
     // For email addresses
