@@ -18,7 +18,7 @@ export const OUTPUT_COLUMN_MAPPING = {
     'fname2': 'MANAERP__First_Name_Phonetic__c',
     'student_id': 'MANAERP__External_User_Id__c',
     'student_no': 'Student_ID_number__c',
-    'customer_id': 'Customer_Id__c',
+    'customer_id': '_Customer_Id__c',
     'birthday': 'Birthdate',
     'sex': 'GenderIdentity',
     'operate_type_id': 'Student_Category__c',
@@ -26,6 +26,7 @@ export const OUTPUT_COLUMN_MAPPING = {
     'branch_id': 'Current_Campus__r:Account:Org_Code__c',
     'main_school_branch_id': 'Current_Main_school__r:Account:Org_Code__c',
     'grade': 'MANAERP__Grade__r:MANAERP__Grade__c:Name',
+    'Customer_Grade_Old_system__c': 'Customer_Grade_Old_system__c',
     'phone': 'Phone',
     'other_phone': 'OtherPhone',
     'main_email': 'Email',
@@ -37,9 +38,43 @@ export const OUTPUT_COLUMN_MAPPING = {
     'address3': 'MANAERP__Street_2__c',
     'entrance_date': 'Date_of_enrollment__c',
     'graduate_date': 'Expected_graduation_date__c',
+    'Graduation_Day__c': 'Graduation_Day__c',
     'comment': 'Description',
     'dm_sendable': 'DM_sending_flag__c'
 };
+
+export const REQUIRED_COLUMNS = [
+    'MANAERP__Username__c',
+    'kname1',
+    'kname2',
+    'fname1',
+    'fname2',
+    'student_id',
+    'student_no',
+    'customer_id',
+    'birthday',
+    'sex',
+    'operate_type_id',
+    'course_type',
+    'branch_id',
+    'main_school_branch_id',  // Add this new column
+    'grade',
+    'Customer_Grade_Old_system__c', // Grade value from customer.csv
+    'phone',           // New column
+    'other_phone',     // New column
+    'main_email',      // New column
+    'sub_email',       // New column
+    'zip_cd',
+    'pref_id',
+    'address1',
+    'address2',
+    'address3',
+    'entrance_date',
+    'graduate_date',
+    'Graduation_Day__c', // Graduation date from student_info.csv when graduate_flg = 1
+    'comment',
+    'dm_sendable'
+];
 
 // Prefecture mappings
 export const PREFECTURE_MAPPING = {
@@ -117,21 +152,6 @@ export const GRADE_MAPPING = {
     '44': '大4',
     '99': '-'
 };
-// export const GRADE_MAPPING = {
-//     '16': 'a1AHy000006uTCNMA2',
-//     '21': 'a1AHy000006uTCSMA2',
-//     '22': 'a1AHy000006uTCXMA2',
-//     '23': 'a1AHy000006uTCcMAM',
-//     '31': 'a1AHy000006uTChMAM',
-//     '32': 'a1AHy000006uTCiMAM',
-//     '33': 'a1AHy000006uTCmMAM',
-//     '39': '卒業',
-//     '41': 'a1AHy000006uTCdMAM',
-//     '42': 'a1AHy000006uTCrMAM',
-//     '43': 'a1AHy000006uTCsMAM',
-//     '44': 'a1AHy000006uTCwMAM',
-//     '99': 'a1AHy000006uXmfMAE'
-// };
 
 export const COURSE_TYPE_MAPPING = {
     '1': '4',
@@ -150,8 +170,8 @@ export const OPERATE_TYPE_MAPPING = {
     '40': '専門カレッジ',
     '41': '選科',
     '42': '高認',
-    '43': '高認',
-    '44': '高認',
+    '43': '個別',
+    '44': '高認通信',
     '38': '本科',
     '48': '中等部',
     '47': 'フリースクール',
@@ -163,39 +183,12 @@ export const OPERATE_TYPE_MAPPING = {
 export const SEX_MAPPING = {
     '1': '男',
     '2': '女',
-    '3': '不明'
+    '3': '不明',
+    '': '不明',
+    'null': '不明'
 };
 
-export const REQUIRED_COLUMNS = [
-    'MANAERP__Username__c',
-    'kname1',
-    'kname2',
-    'fname1',
-    'fname2',
-    'student_id',
-    'student_no',
-    'customer_id',
-    'birthday',
-    'sex',
-    'operate_type_id',
-    'course_type',
-    'branch_id',
-    'main_school_branch_id',  // Add this new column
-    'grade',
-    'phone',           // New column
-    'other_phone',     // New column
-    'main_email',      // New column
-    'sub_email',       // New column
-    'zip_cd',
-    'pref_id',
-    'address1',
-    'address2',
-    'address3',
-    'entrance_date',
-    'graduate_date',
-    'comment',
-    'dm_sendable'
-];
+
 
 // Add this to mappings.js after the other mapping constants
 
@@ -488,8 +481,8 @@ export function transformCourseType(value) {
 export function transformOperateType(value) {
     // Convert to string to ensure proper lookup
     const strValue = String(value);
-    const default_value = '本科';
-    return OPERATE_TYPE_MAPPING[strValue] || default_value;
+    // const default_value = '本科';
+    return OPERATE_TYPE_MAPPING[strValue] || value;
 }
 
 export function transformSex(value) {
