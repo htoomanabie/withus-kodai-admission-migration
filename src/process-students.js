@@ -26,13 +26,311 @@ const TAG_VALUE = "phase22"; // Configurable tag value - can be changed or remov
 const ADD_TAG_COLUMN = TAG_VALUE !== ""; // Flag to determine if tag column should be added
 const COUNTER_START = 30000001; // Starting value for the counter column. check from `SELECT Id, MANAERP__Username_Count__c FROM MANAERP__Contact_Username_Counter__c`
 
+// Helper function to create mapping statistics tracker
+function createMappingStatsTracker() {
+    return {
+        mappings: new Map(),           // original_value -> { mapped: 'mapped_value', count: number }
+        finalMappedValues: new Map()   // mapped_value -> total_count
+    };
+}
+
+// Helper function to track mapping statistics
+function trackMappingStats(originalValue, transformedValue, statsTracker, columnName = '') {
+    if (!statsTracker) return transformedValue;
+    
+    const originalKey = String(originalValue || '');
+    const mappedValue = String(transformedValue);
+    
+    // Track original -> mapped mappings
+    if (statsTracker.mappings.has(originalKey)) {
+        statsTracker.mappings.get(originalKey).count++;
+    } else {
+        statsTracker.mappings.set(originalKey, {
+            mapped: mappedValue,
+            count: 1,
+            columnName: columnName
+        });
+    }
+    
+    // Track final mapped values
+    statsTracker.finalMappedValues.set(mappedValue, 
+        (statsTracker.finalMappedValues.get(mappedValue) || 0) + 1);
+    
+    return transformedValue;
+}
+
+// Helper function to display mapping statistics
+function displayMappingStats(statsTracker, columnTitle, processedCount) {
+    if (!statsTracker || statsTracker.mappings.size === 0) {
+        console.log(`   No ${columnTitle.toLowerCase()} data processed`);
+        return;
+    }
+    
+    console.log(`🔄 ${columnTitle} Mappings (Original → Mapped → Count):`);
+    Array.from(statsTracker.mappings.entries())
+        .sort(([,a], [,b]) => b.count - a.count) // Sort by count descending
+        .forEach(([original, {mapped, count}]) => {
+            const displayOriginal = original === '' ? '(empty)' : `"${original}"`;
+            console.log(`   ├── ${displayOriginal} → "${mapped}" → ${count} records`);
+        });
+    
+    console.log(`\n📊 Final ${columnTitle} Distribution:`);
+    Array.from(statsTracker.finalMappedValues.entries())
+        .sort(([,a], [,b]) => b - a) // Sort by count descending
+        .forEach(([mappedValue, count]) => {
+            const displayValue = mappedValue === '' ? '(empty)' : `"${mappedValue}"`;
+            const percentage = ((count / processedCount) * 100).toFixed(1);
+            console.log(`   ├── ${displayValue} → ${count} records (${percentage}%)`);
+        });
+}
+
+// Helper function to create mapping stats collection for easy extensibility
+function createAllMappingStats() {
+    return {
+        dmSendable: createMappingStatsTracker(),
+        sex: createMappingStatsTracker(),
+        grade: createMappingStatsTracker(),
+        courseType: createMappingStatsTracker(),
+        // Easy to add new column tracking:
+        // prefecture: createMappingStatsTracker(),
+        // branchId: createMappingStatsTracker(),
+        // dmSendable2: createMappingStatsTracker(),
+    };
+}
+
+// Helper function to display all mapping statistics
+function displayAllMappingStats(allMappingStats, processedCount) {
+    const statsConfig = [
+        { key: 'dmSendable', title: 'DM Sendable', icon: '📧' },
+        { key: 'sex', title: 'Sex', icon: '👤' },
+        { key: 'grade', title: 'Grade', icon: '🎓' },
+        { key: 'courseType', title: 'Course Type', icon: '📚' },
+        // Easy to add new column display:
+        // { key: 'prefecture', title: 'Prefecture', icon: '🗾' },
+        // { key: 'branchId', title: 'Branch ID', icon: '🏢' },
+    ];
+    
+    statsConfig.forEach(({ key, title, icon }) => {
+        console.log(`\n${icon} ${title} Processing Statistics:`);
+        displayMappingStats(allMappingStats[key], title, processedCount);
+    });
+}
+
+// Helper function to create data quality tracker
+function createDataQualityTracker() {
+    return {
+        totalRecords: 0,
+        totalFields: 0,
+        issuesByColumn: new Map(), // column_name -> { original: {}, output: {} }
+        overallStats: {
+            original: {
+                emptyValues: 0,
+                nullValues: 0,
+                invalidValues: 0,
+                validValues: 0
+            },
+            output: {
+                emptyValues: 0,
+                nullValues: 0,
+                invalidValues: 0,
+                validValues: 0
+            }
+        }
+    };
+}
+
+// Helper function to determine if a value is invalid based on column type
+function isInvalidValue(columnName, originalValue, transformedValue) {
+    if (!originalValue && originalValue !== 0) return false; // Skip null/empty checks here
+    
+    const strValue = String(originalValue);
+    
+    // Date validation
+    if (columnName.includes('date') || columnName.includes('Date') || columnName === 'birthday') {
+        if (strValue !== '' && transformedValue === strValue) {
+            // If transformation didn't change the value, check if it's a valid date
+            const date = new Date(strValue);
+            return isNaN(date.getTime());
+        }
+    }
+    
+    // Email validation
+    if (columnName.includes('email')) {
+        if (strValue !== '') {
+            // Basic email pattern check
+            return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(strValue);
+        }
+    }
+    
+    return false;
+}
+
+// Helper function to track data quality for a single field
+function trackDataQuality(columnName, originalValue, transformedValue, qualityTracker) {
+    if (!qualityTracker) return transformedValue;
+    
+    // Skip tracking MANAERP__Username__c as it's auto-generated
+    if (columnName === 'MANAERP__Username__c') {
+        return transformedValue;
+    }
+    
+    qualityTracker.totalFields++;
+    
+    // Initialize column tracking if not exists
+    if (!qualityTracker.issuesByColumn.has(columnName)) {
+        qualityTracker.issuesByColumn.set(columnName, {
+            original: {
+                empty: 0,
+                null: 0,
+                invalid: 0,
+                valid: 0,
+                total: 0
+            },
+            output: {
+                empty: 0,
+                null: 0,
+                invalid: 0,
+                valid: 0,
+                total: 0
+            }
+        });
+    }
+    
+    const columnStats = qualityTracker.issuesByColumn.get(columnName);
+    
+    // Track original value quality
+    columnStats.original.total++;
+    if (originalValue === null || originalValue === undefined) {
+        qualityTracker.overallStats.original.nullValues++;
+        columnStats.original.null++;
+    } else if (originalValue === '' || (typeof originalValue === 'string' && originalValue.trim() === '')) {
+        qualityTracker.overallStats.original.emptyValues++;
+        columnStats.original.empty++;
+    } else if (isInvalidValue(columnName, originalValue, originalValue)) {
+        qualityTracker.overallStats.original.invalidValues++;
+        columnStats.original.invalid++;
+    } else {
+        qualityTracker.overallStats.original.validValues++;
+        columnStats.original.valid++;
+    }
+    
+    // Track output value quality  
+    columnStats.output.total++;
+    if (transformedValue === null || transformedValue === undefined) {
+        qualityTracker.overallStats.output.nullValues++;
+        columnStats.output.null++;
+    } else if (transformedValue === '' || (typeof transformedValue === 'string' && transformedValue.trim() === '')) {
+        qualityTracker.overallStats.output.emptyValues++;
+        columnStats.output.empty++;
+    } else if (isInvalidValue(columnName, transformedValue, transformedValue)) {
+        qualityTracker.overallStats.output.invalidValues++;
+        columnStats.output.invalid++;
+    } else {
+        qualityTracker.overallStats.output.validValues++;
+        columnStats.output.valid++;
+    }
+    
+    return transformedValue;
+}
+
+// Helper function to display data quality statistics
+function displayDataQualityStats(qualityTracker, processedCount) {
+    if (!qualityTracker) {
+        console.log('   No data quality tracking available');
+        return;
+    }
+    
+    console.log('\n🔍 Data Quality Analysis (Original vs Output):');
+    console.log(`📊 Overall Statistics:`);
+    console.log(`   ├── Total records processed: ${qualityTracker.totalRecords || processedCount}`);
+    console.log(`   ├── Total fields processed: ${qualityTracker.totalFields} (excluding MANAERP__Username__c)`);
+    
+    // Show original vs output comparison
+    const originalStats = qualityTracker.overallStats.original;
+    const outputStats = qualityTracker.overallStats.output;
+    const totalOriginal = originalStats.validValues + originalStats.emptyValues + originalStats.nullValues + originalStats.invalidValues;
+    const totalOutput = outputStats.validValues + outputStats.emptyValues + outputStats.nullValues + outputStats.invalidValues;
+    
+    console.log(`   ├── Original → Output Comparison:`);
+    console.log(`   │   ├── Valid: ${originalStats.validValues} (${((originalStats.validValues/totalOriginal)*100).toFixed(1)}%) → ${outputStats.validValues} (${((outputStats.validValues/totalOutput)*100).toFixed(1)}%)`);
+    console.log(`   │   ├── Empty: ${originalStats.emptyValues} (${((originalStats.emptyValues/totalOriginal)*100).toFixed(1)}%) → ${outputStats.emptyValues} (${((outputStats.emptyValues/totalOutput)*100).toFixed(1)}%)`);
+    console.log(`   │   ├── Null: ${originalStats.nullValues} (${((originalStats.nullValues/totalOriginal)*100).toFixed(1)}%) → ${outputStats.nullValues} (${((outputStats.nullValues/totalOutput)*100).toFixed(1)}%)`);
+    console.log(`   │   └── Invalid: ${originalStats.invalidValues} (${((originalStats.invalidValues/totalOriginal)*100).toFixed(1)}%) → ${outputStats.invalidValues} (${((outputStats.invalidValues/totalOutput)*100).toFixed(1)}%)`);
+    
+    // Show transformation improvement
+    const originalIssues = originalStats.emptyValues + originalStats.nullValues + originalStats.invalidValues;
+    const outputIssues = outputStats.emptyValues + outputStats.nullValues + outputStats.invalidValues;
+    const improvement = originalIssues - outputIssues;
+    const improvementPercent = originalIssues > 0 ? ((improvement / originalIssues) * 100).toFixed(1) : '0.0';
+    
+    console.log(`   └── Data Quality Improvement: ${improvement} issues fixed (${improvementPercent}% improvement)`);
+    
+    // Show columns with most original issues and their transformation results
+    const columnsWithOriginalIssues = Array.from(qualityTracker.issuesByColumn.entries())
+        .map(([column, stats]) => ({
+            column,
+            originalIssues: stats.original.empty + stats.original.null + stats.original.invalid,
+            outputIssues: stats.output.empty + stats.output.null + stats.output.invalid,
+            originalTotal: stats.original.total,
+            outputTotal: stats.output.total,
+            improvement: (stats.original.empty + stats.original.null + stats.original.invalid) - (stats.output.empty + stats.output.null + stats.output.invalid),
+            originalStats: stats.original,
+            outputStats: stats.output
+        }))
+        .filter(item => item.originalIssues > 0)
+        .sort((a, b) => b.originalIssues - a.originalIssues);
+    
+    if (columnsWithOriginalIssues.length > 0) {
+        console.log(`\n⚠️  Columns with Original Data Quality Issues → Transformation Results (All ${columnsWithOriginalIssues.length} columns):`);
+        columnsWithOriginalIssues.forEach((item, index) => {
+            const symbol = index === columnsWithOriginalIssues.length - 1 ? '└──' : '├──';
+            const improvementText = item.improvement > 0 ? `✅ Fixed ${item.improvement}` : item.improvement < 0 ? `❌ Added ${Math.abs(item.improvement)}` : '➖ No change';
+            console.log(`   ${symbol} ${item.column}: ${item.originalIssues}→${item.outputIssues} issues (${improvementText})`);
+            
+            // Show detailed breakdown
+            console.log(`       ├── Original → Null: ${item.originalStats.null}, Empty: ${item.originalStats.empty}, Invalid: ${item.originalStats.invalid}`);
+            console.log(`       └── Output   → Null: ${item.outputStats.null}, Empty: ${item.outputStats.empty}, Invalid: ${item.outputStats.invalid}`);
+        });
+    }
+    
+    // Show columns with perfect output quality (no null, empty, or invalid values)
+    const perfectOutputColumns = Array.from(qualityTracker.issuesByColumn.entries())
+        .filter(([, stats]) => stats.output.empty + stats.output.null + stats.output.invalid === 0)
+        .map(([column]) => column)
+        .sort(); // Sort alphabetically for better readability
+    
+    if (perfectOutputColumns.length > 0) {
+        console.log(`\n✨ Columns with Perfect Output Quality (${perfectOutputColumns.length} columns - No null, empty, or invalid values):`);
+        perfectOutputColumns.forEach((column, index) => {
+            const symbol = index === perfectOutputColumns.length - 1 ? '└──' : '├──';
+            console.log(`   ${symbol} ${column}`);
+        });
+    } else {
+        console.log(`\n⚠️  No columns with perfect output quality found`);
+    }
+    
+    // Show columns with most improvement
+    const mostImproved = columnsWithOriginalIssues
+        .filter(item => item.improvement > 0)
+        .sort((a, b) => b.improvement - a.improvement)
+        .slice(0, 5);
+    
+    if (mostImproved.length > 0) {
+        console.log(`\n🚀 Most Improved Columns:`);
+        mostImproved.forEach((item, index) => {
+            const symbol = index === mostImproved.length - 1 ? '└──' : '├──';
+            console.log(`   ${symbol} ${item.column}: Fixed ${item.improvement} issues (${((item.improvement/item.originalIssues)*100).toFixed(1)}% improvement)`);
+        });
+    }
+}
+
 // Function to remove dashes from a string
 function removeDashes(str) {
     if (!str) return str;
     return String(str).replace(/-/g, '');
 }
 
-// Date formatting function
+// Date formatting function - ensures consistent YYYY-MM-DD format
 function formatDate(dateValue) {
     if (!dateValue) return '';
     
@@ -48,6 +346,138 @@ function formatDate(dateValue) {
     } catch (error) {
         console.warn(`Warning: Could not format date ${dateValue}`);
         return dateValue;
+    }
+}
+
+// Function to get the last day of the month for a given date
+function getLastDayOfMonth(dateValue) {
+    if (!dateValue) return '';
+    
+    try {
+        const date = new Date(dateValue);
+        if (isNaN(date.getTime())) return dateValue;
+
+        const year = date.getFullYear();
+        const month = date.getMonth(); // 0-based month
+        
+        // Create date with last day of the month (day 0 of next month)
+        const lastDayDate = new Date(year, month + 1, 0);
+        
+        const lastDay = String(lastDayDate.getDate()).padStart(2, '0');
+        const monthStr = String(month + 1).padStart(2, '0');
+        
+        return `${year}-${monthStr}-${lastDay}`;
+    } catch (error) {
+        console.warn(`Warning: Could not calculate last day of month for ${dateValue}`);
+        return formatDate(dateValue); // Fallback to regular formatting
+    }
+}
+
+// Function to verify phone number logic compliance
+function verifyPhoneNumberLogic(record, derivedPhones, counters) {
+    if (!counters || !counters.phoneRuleStats) return;
+    
+    const tel = getFieldValue(record, 'tel');
+    const portableTel = getFieldValue(record, 'portable_tel');
+    
+    // Check if values are truly NULL (not just empty or '0')
+    const telIsNotNull = tel !== undefined && tel !== null && tel !== '';
+    const portableTelIsNotNull = portableTel !== undefined && portableTel !== null && portableTel !== '';
+    
+    const finalPhone = derivedPhones.phone;
+    const finalOtherPhone = derivedPhones.other_phone;
+    
+    // Rule 1: tel is not NULL AND portable_tel is not NULL → portable_tel is Phone and tel is Other Phone
+    if (telIsNotNull && portableTelIsNotNull) {
+        counters.phoneRuleStats.rule1_both_exist++;
+        const expectedPhone = removeDashes(portableTel);
+        const expectedOtherPhone = removeDashes(tel);
+        if (finalPhone === expectedPhone && finalOtherPhone === expectedOtherPhone) {
+            counters.phoneRuleStats.rule1_compliant++;
+        } else {
+            counters.phoneRuleStats.rule1_non_compliant++;
+        }
+    }
+    // Rule 2: tel is not NULL AND portable_tel is NULL → tel is Phone
+    else if (telIsNotNull && !portableTelIsNotNull) {
+        counters.phoneRuleStats.rule2_tel_only++;
+        const expectedPhone = removeDashes(tel);
+        if (finalPhone === expectedPhone && (finalOtherPhone === null || finalOtherPhone === '')) {
+            counters.phoneRuleStats.rule2_compliant++;
+        } else {
+            counters.phoneRuleStats.rule2_non_compliant++;
+        }
+    }
+    // Rule 3: tel is NULL AND portable_tel is not NULL → portable_tel is Phone
+    else if (!telIsNotNull && portableTelIsNotNull) {
+        counters.phoneRuleStats.rule3_portable_only++;
+        const expectedPhone = removeDashes(portableTel);
+        if (finalPhone === expectedPhone && (finalOtherPhone === null || finalOtherPhone === '')) {
+            counters.phoneRuleStats.rule3_compliant++;
+        } else {
+            counters.phoneRuleStats.rule3_non_compliant++;
+        }
+    }
+    // Rule 4: tel is NULL AND portable_tel is NULL → both are NULL
+    else if (!telIsNotNull && !portableTelIsNotNull) {
+        counters.phoneRuleStats.rule4_both_null++;
+        if ((finalPhone === null || finalPhone === '') && (finalOtherPhone === null || finalOtherPhone === '')) {
+            counters.phoneRuleStats.rule4_compliant++;
+        } else {
+            counters.phoneRuleStats.rule4_non_compliant++;
+        }
+    }
+}
+
+// Function to verify email logic compliance
+function verifyEmailLogic(record, derivedEmails, counters) {
+    if (!counters || !counters.emailRuleStats) return;
+    
+    const email = getFieldValue(record, 'email');
+    const portableEmail = getFieldValue(record, 'portable_email');
+    
+    // Check if values are truly NULL (not just empty)
+    const emailIsNotNull = email !== undefined && email !== null && email !== '';
+    const portableEmailIsNotNull = portableEmail !== undefined && portableEmail !== null && portableEmail !== '';
+    
+    const finalMainEmail = derivedEmails.main_email;
+    const finalSubEmail = derivedEmails.sub_email;
+    
+    // Rule 1: email is not NULL AND portable_email is not NULL → portable_email is Main Email and email is Sub Email
+    if (emailIsNotNull && portableEmailIsNotNull) {
+        counters.emailRuleStats.rule1_both_exist++;
+        if (finalMainEmail === portableEmail && finalSubEmail === email) {
+            counters.emailRuleStats.rule1_compliant++;
+        } else {
+            counters.emailRuleStats.rule1_non_compliant++;
+        }
+    }
+    // Rule 2: email is not NULL AND portable_email is NULL → email is Main Email
+    else if (emailIsNotNull && !portableEmailIsNotNull) {
+        counters.emailRuleStats.rule2_email_only++;
+        if (finalMainEmail === email && (finalSubEmail === null || finalSubEmail === '')) {
+            counters.emailRuleStats.rule2_compliant++;
+        } else {
+            counters.emailRuleStats.rule2_non_compliant++;
+        }
+    }
+    // Rule 3: email is NULL AND portable_email is not NULL → portable_email is Main Email
+    else if (!emailIsNotNull && portableEmailIsNotNull) {
+        counters.emailRuleStats.rule3_portable_only++;
+        if (finalMainEmail === portableEmail && (finalSubEmail === null || finalSubEmail === '')) {
+            counters.emailRuleStats.rule3_compliant++;
+        } else {
+            counters.emailRuleStats.rule3_non_compliant++;
+        }
+    }
+    // Rule 4: email is NULL AND portable_email is NULL → both are NULL
+    else if (!emailIsNotNull && !portableEmailIsNotNull) {
+        counters.emailRuleStats.rule4_both_null++;
+        if ((finalMainEmail === null || finalMainEmail === '') && (finalSubEmail === null || finalSubEmail === '')) {
+            counters.emailRuleStats.rule4_compliant++;
+        } else {
+            counters.emailRuleStats.rule4_non_compliant++;
+        }
     }
 }
 
@@ -130,26 +560,37 @@ function deriveEmails(record) {
     };
 }
 
-function filterColumns(record) {
+function filterColumns(record, mappingStats = {}, dataQualityTracker = null, counters = {}) {
     const filteredRecord = {};
     
     // Get derived phone numbers and emails
     const phoneNumbers = derivePhoneNumbers(record);
     const emails = deriveEmails(record);
     
+    // Verify phone number logic compliance
+    verifyPhoneNumberLogic(record, phoneNumbers, counters);
+    
+    // Verify email logic compliance
+    verifyEmailLogic(record, emails, counters);
+    
     // Process each required column
     REQUIRED_COLUMNS.forEach(column => {
         let value;
+        let originalValueForQuality;
         
         // Handle special columns
         if (column === 'phone') {
             value = phoneNumbers.phone;
+            originalValueForQuality = getFieldValue(record, 'tel') || getFieldValue(record, 'portable_tel') || record.phone;
         } else if (column === 'other_phone') {
             value = phoneNumbers.other_phone;
+            originalValueForQuality = getFieldValue(record, 'tel') || getFieldValue(record, 'portable_tel') || record.other_phone;
         } else if (column === 'main_email') {
             value = emails.main_email;
+            originalValueForQuality = getFieldValue(record, 'email') || getFieldValue(record, 'portable_email') || record.main_email;
         } else if (column === 'sub_email') {
             value = emails.sub_email;
+            originalValueForQuality = getFieldValue(record, 'email') || getFieldValue(record, 'portable_email') || record.sub_email;
         } else if (column === 'main_school_branch_id') {
             // For main_school_branch_id, check if branch_id is 43 or 46
             const branchId = record.branch_id;
@@ -157,8 +598,12 @@ function filterColumns(record) {
                 value = branchId;
             } else {
                 // Check if main_school_branch_id already exists in the record
-                value = record.main_school_branch_id || '';
+                // value = record.main_school_branch_id || '';
+
+                // need post-migration apex to set this value
+                value = '';
             }
+            originalValueForQuality = record.main_school_branch_id || record.branch_id;
         } else if (column === 'branch_id') {
             // For branch_id, only keep value if it's not 43 or 46
             const branchId = record.branch_id;
@@ -167,27 +612,117 @@ function filterColumns(record) {
             } else {
                 value = branchId;
             }
+            originalValueForQuality = record.branch_id;
         } else {
             value = record[column] !== undefined ? record[column] : '';
+            originalValueForQuality = record[column];
         }
         
         // Apply transformations
-        if (column === 'entrance_date' || column === 'graduate_date' || column === 'birthday') {
+        if (column === 'entrance_date' || column === 'birthday') {
             value = formatDate(value);
+                } else if (column === 'graduate_date') {
+            // Special logic for graduate_date based on graduate_flg from student_info.csv
+            const graduateDateFromStudentInfo = record._graduateDateFromStudentInfo || false;
+            const graduateFlg = record._graduateFlg || false;
+            
+            if (graduateDateFromStudentInfo) {
+                // Record has student_info.csv data - apply graduate_flg logic
+                // Increment counter for records with graduate_date from student_info.csv
+                if (counters && counters.graduateDateFromStudentInfoCount !== undefined) {
+                    counters.graduateDateFromStudentInfoCount++;
+                }
+                
+                if (graduateFlg) {
+                    // graduate_flg = true (1) - set day to last day of month
+                    value = getLastDayOfMonth(value);
+                    // Increment counter for modified graduate_date
+                    if (counters && counters.graduateDateModifiedCount !== undefined) {
+                        counters.graduateDateModifiedCount++;
+                    }
+                } else {
+                    // graduate_flg = false (0) - use value as-is but ensure proper formatting
+                    value = formatDate(value);
+                    // Increment counter for unmodified graduate_date
+                    if (counters && counters.graduateDateUnmodifiedCount !== undefined) {
+                        counters.graduateDateUnmodifiedCount++;
+                    }
+                }
+            } else {
+                // Record has no student_info.csv data - use as-is with formatting
+                value = formatDate(value);
+            }
+        } else if (column === 'Graduation_Day__c') {
+            // Set this column only if graduate_date came from student_info.csv AND graduate_flg = 1
+            const graduateDateFromStudentInfo = record._graduateDateFromStudentInfo || false;
+            const graduateFlg = record._graduateFlg || false;
+            
+            if (graduateDateFromStudentInfo && graduateFlg && record.graduate_date) {
+                // Use the graduate_date value and format it
+                value = formatDate(record.graduate_date);
+                // Increment counter for populated Graduation_Day__c
+                if (counters && counters.graduationDayCount !== undefined) {
+                    counters.graduationDayCount++;
+                }
+            } else {
+                value = ''; // Empty if conditions not met
+            }
+            originalValueForQuality = (graduateDateFromStudentInfo && graduateFlg) ? record.graduate_date : '';
         } else if (column === 'sex') {
+            const originalValue = value;
             value = transformSex(value);
+            value = trackMappingStats(originalValue, value, mappingStats.sex, 'sex');
         } else if (column === 'operate_type_id') {
             value = transformOperateType(value);
         } else if (column === 'course_type') {
+            const originalValue = value;
             value = transformCourseType(value);
+            value = trackMappingStats(originalValue, value, mappingStats.courseType, 'course_type');
         } else if (column === 'grade') {
-            value = transformGrade(value);
-            // Set empty grade values to '-'
+            const originalValue = value;
+            const gradeFromCustomer = record._gradeFromCustomer || false;
+            
+            if (gradeFromCustomer) {
+                // Grade comes from customer.csv - set to empty value
+                value = '';
+                // Increment counter for grades emptied due to customer.csv source
+                if (counters && counters.gradeEmptiedFromCustomerCount !== undefined) {
+                    counters.gradeEmptiedFromCustomerCount++;
+                }
+            } else {
+                // Grade comes from student_info.csv - use transformed value
+                value = transformGrade(value);
+            }
+            
+            // Apply empty-to-dash conversion for ALL grades (regardless of source)
             if (!value || (typeof value === 'string' && value.trim() === '') || value === '卒業') {
                 value = '-';
             }
+            
+            value = trackMappingStats(originalValue, value, mappingStats.grade, 'grade');
+        } else if (column === 'Customer_Grade_Old_system__c') {
+            // Set this column only if grade came from customer.csv
+            const gradeFromCustomer = record._gradeFromCustomer || false;
+            if (gradeFromCustomer && record.grade) {
+                // Use the original grade value before transformation
+                const originalGradeValue = record.grade;
+                value = transformGrade(originalGradeValue);
+                // Set empty grade values to '-'
+                if (!value || (typeof value === 'string' && value.trim() === '') || value === '卒業') {
+                    value = '-';
+                }
+                // Increment counter for populated Customer_Grade_Old_system__c
+                if (counters && counters.customerGradeCount !== undefined) {
+                    counters.customerGradeCount++;
+                }
+            } else {
+                value = ''; // Empty if grade didn't come from customer.csv
+            }
+            originalValueForQuality = gradeFromCustomer ? record.grade : '';
         } else if (column === 'dm_sendable') {
+            const originalValue = value;
             value = transformDmSendable(value);
+            value = trackMappingStats(originalValue, value, mappingStats.dmSendable, 'dm_sendable');
         } else if (column === 'pref_id') {
             value = transformPrefecture(value);
         } else if (column === 'zip_cd') {
@@ -209,6 +744,9 @@ function filterColumns(record) {
         } else if (column === 'phone' || column === 'other_phone') {
             value = transformPhone(value);
         }
+        
+        // Track data quality for this column (after all transformations)
+        trackDataQuality(column, originalValueForQuality, value, dataQualityTracker);
         
         filteredRecord[column] = value;
     });
@@ -368,6 +906,68 @@ async function processStudentData(inputFile) {
         let customerInfoCount = 0;
         let incompleteCount = 0;
         let historyOperateTypeCount = 0;
+        let fallbackOperateTypeCount = 0;
+        let operateTypeBreakdown = {
+            '高認': 0,
+            '本科': 0,
+            'empty': 0,
+            'fromHistory': 0
+        };
+        let customerGradeCount = 0; // Track records with Customer_Grade_Old_system__c populated
+        let graduationDayCount = 0; // Track records with Graduation_Day__c populated
+        let graduateDateModifiedCount = 0; // Track records where graduate_date was set to end of month
+        let graduateDateFromStudentInfoCount = 0; // Track total records with graduate_date from student_info.csv
+        let graduateDateUnmodifiedCount = 0; // Track records where graduate_date was not modified (graduate_flg = false)
+        let gradeEmptiedFromCustomerCount = 0; // Track records where grade was set to empty because it came from customer.csv
+        
+        // Phone rule compliance statistics
+        let phoneRuleStats = {
+            rule1_both_exist: 0,
+            rule1_compliant: 0,
+            rule1_non_compliant: 0,
+            rule2_tel_only: 0,
+            rule2_compliant: 0,
+            rule2_non_compliant: 0,
+            rule3_portable_only: 0,
+            rule3_compliant: 0,
+            rule3_non_compliant: 0,
+            rule4_both_null: 0,
+            rule4_compliant: 0,
+            rule4_non_compliant: 0
+        };
+        
+        // Email rule compliance statistics
+        let emailRuleStats = {
+            rule1_both_exist: 0,
+            rule1_compliant: 0,
+            rule1_non_compliant: 0,
+            rule2_email_only: 0,
+            rule2_compliant: 0,
+            rule2_non_compliant: 0,
+            rule3_portable_only: 0,
+            rule3_compliant: 0,
+            rule3_non_compliant: 0,
+            rule4_both_null: 0,
+            rule4_compliant: 0,
+            rule4_non_compliant: 0
+        };
+        
+        // Create mapping statistics trackers using helper function
+        let operateTypeStats = {
+            historyMappings: createMappingStatsTracker(),
+            fallbackAssignments: {
+                '高認': 0,  // student_id starts with '1'
+                '本科': 0,  // student_id starts with '4'  
+                'empty': 0  // student_id starts with '5'
+            },
+            finalMappedValues: new Map() // mapped_value -> count
+        };
+        
+        // Create all mapping statistics trackers
+        let allMappingStats = createAllMappingStats();
+        
+        // Create data quality tracker
+        let dataQualityTracker = createDataQualityTracker();
         
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
@@ -382,14 +982,25 @@ async function processStudentData(inputFile) {
                 
                 // Try to find info in student_info.csv first
                 let infoRecord = studentInfoMap.get(studentId);
+                let gradeFromCustomer = false; // Track if grade comes from customer.csv
+                let graduateDateFromStudentInfo = false; // Track if graduate_date comes from student_info.csv
+                let graduateFlg = false; // Track graduate_flg from student_info.csv
                 
                 // If not found in student_info.csv, try customer.csv
                 if (!infoRecord && customerId) {
                     infoRecord = customerMap.get(customerId);
                     if (infoRecord) {
+                        gradeFromCustomer = true; // Entire record from customer.csv
                         customerInfoCount++;
                     }
                 } else if (infoRecord) {
+                    // Record comes from student_info.csv - always track this for graduate_flg logic
+                    graduateDateFromStudentInfo = true;
+                    
+                    // Capture graduate_flg value (could be 1, '1', true, 'true', etc.)
+                    const graduateFlagValue = infoRecord.graduate_flg || infoRecord['graduate_flg'];
+                    graduateFlg = (graduateFlagValue === 1 || graduateFlagValue === '1' || graduateFlagValue === true || graduateFlagValue === 'true');
+                    
                     // If we have student_info record, check for null values and fill from customer.csv
                     if (customerId) {
                         const customerRecord = customerMap.get(customerId);
@@ -402,13 +1013,18 @@ async function processStudentData(inputFile) {
                                 'other_phone': 'other_phone',
                                 'main_email': 'main_email',
                                 'sub_email': 'sub_email',
-                                'description': 'description'
+                                'description': 'description',
+                                'grade': 'grade' // Add grade to the mapping
                             };
 
                             // Fill in null values from customer record
                             Object.entries(fieldMappings).forEach(([studentInfoField, customerField]) => {
                                 if (!infoRecord[studentInfoField] && customerRecord[customerField]) {
                                     infoRecord[studentInfoField] = customerRecord[customerField];
+                                    // Track if grade was filled from customer.csv
+                                    if (studentInfoField === 'grade') {
+                                        gradeFromCustomer = true;
+                                    }
                                 }
                             });
                         }
@@ -431,8 +1047,29 @@ async function processStudentData(inputFile) {
                         incompleteRecord.customer_id = customerId;
                     }
                     
+                    // For incomplete records, no info comes from customer.csv or student_info.csv since no info was found
+                    incompleteRecord._gradeFromCustomer = false;
+                    incompleteRecord._graduateDateFromStudentInfo = false;
+                    incompleteRecord._graduateFlg = false;
+                    
                     // Apply transformations
-                    const filteredRecord = filterColumns(incompleteRecord);
+                    const counters = { 
+                        customerGradeCount, 
+                        graduationDayCount, 
+                        graduateDateModifiedCount,
+                        graduateDateFromStudentInfoCount,
+                        graduateDateUnmodifiedCount,
+                        gradeEmptiedFromCustomerCount,
+                        phoneRuleStats,
+                        emailRuleStats
+                    };
+                    const filteredRecord = filterColumns(incompleteRecord, allMappingStats, dataQualityTracker, counters);
+                    customerGradeCount = counters.customerGradeCount; // Update the counter
+                    graduationDayCount = counters.graduationDayCount; // Update the counter
+                    graduateDateModifiedCount = counters.graduateDateModifiedCount; // Update the counter
+                    graduateDateFromStudentInfoCount = counters.graduateDateFromStudentInfoCount; // Update the counter
+                    graduateDateUnmodifiedCount = counters.graduateDateUnmodifiedCount; // Update the counter
+                    gradeEmptiedFromCustomerCount = counters.gradeEmptiedFromCustomerCount; // Update the counter
                     
                     // Add tag if needed
                     if (ADD_TAG_COLUMN) {
@@ -445,11 +1082,48 @@ async function processStudentData(inputFile) {
                     const historyRecord = historyMap.get(studentId);
                     if (historyRecord) {
                         // Handle the case where operate_type_id might have \r character
-                        const operateTypeId = historyRecord.operate_type_id || historyRecord['operate_type_id\r'];
-                        if (operateTypeId) {
-                            // Apply the operate_type_id from history
-                            infoRecord.operate_type_id = operateTypeId;
+                        const originalOperateTypeId = historyRecord.operate_type_id || historyRecord['operate_type_id\r'];
+                        if (originalOperateTypeId) {
+                            // Apply transformation to get mapped value
+                            const mappedOperateTypeId = transformOperateType(originalOperateTypeId);
+                            infoRecord.operate_type_id = mappedOperateTypeId;
+                            
+                            // Track detailed statistics using helper function
+                            trackMappingStats(originalOperateTypeId, mappedOperateTypeId, operateTypeStats.historyMappings, 'operate_type_id');
+                            
+                            // Track final mapped values for operate_type_id summary
+                            const finalMappedKey = String(mappedOperateTypeId);
+                            operateTypeStats.finalMappedValues.set(finalMappedKey, 
+                                (operateTypeStats.finalMappedValues.get(finalMappedKey) || 0) + 1);
+                            
                             historyOperateTypeCount++;
+                            operateTypeBreakdown.fromHistory++;
+                        }
+                    } else {
+                        // If no student_info_history, determine operate_type_id from first letter of student_id
+                        const firstLetter = studentId.charAt(0);
+                        if (firstLetter === '1') {
+                            infoRecord.operate_type_id = '高認';
+                            operateTypeStats.fallbackAssignments['高認']++;
+                            operateTypeStats.finalMappedValues.set('高認', 
+                                (operateTypeStats.finalMappedValues.get('高認') || 0) + 1);
+                            fallbackOperateTypeCount++;
+                            operateTypeBreakdown['高認']++;
+                        } else if (firstLetter === '4') {
+                            infoRecord.operate_type_id = '本科';
+                            operateTypeStats.fallbackAssignments['本科']++;
+                            operateTypeStats.finalMappedValues.set('本科', 
+                                (operateTypeStats.finalMappedValues.get('本科') || 0) + 1);
+                            fallbackOperateTypeCount++;
+                            operateTypeBreakdown['本科']++;
+                        } else if (firstLetter === '5') {
+                            // do nothing. 
+                            infoRecord.operate_type_id = '';
+                            operateTypeStats.fallbackAssignments['empty']++;
+                            operateTypeStats.finalMappedValues.set('', 
+                                (operateTypeStats.finalMappedValues.get('') || 0) + 1);
+                            fallbackOperateTypeCount++;
+                            operateTypeBreakdown.empty++;
                         }
                     }
                     
@@ -466,9 +1140,30 @@ async function processStudentData(inputFile) {
                 if (customerId) {
                     combinedRecord.customer_id = customerId;
                 }
+                
+                // Add metadata about data sources
+                combinedRecord._gradeFromCustomer = gradeFromCustomer;
+                combinedRecord._graduateDateFromStudentInfo = graduateDateFromStudentInfo;
+                combinedRecord._graduateFlg = graduateFlg;
                     
                     // Apply transformations
-                    const filteredRecord = filterColumns(combinedRecord);
+                    const counters = { 
+                        customerGradeCount, 
+                        graduationDayCount, 
+                        graduateDateModifiedCount,
+                        graduateDateFromStudentInfoCount,
+                        graduateDateUnmodifiedCount,
+                        gradeEmptiedFromCustomerCount,
+                        phoneRuleStats,
+                        emailRuleStats
+                    };
+                    const filteredRecord = filterColumns(combinedRecord, allMappingStats, dataQualityTracker, counters);
+                    customerGradeCount = counters.customerGradeCount; // Update the counter
+                    graduationDayCount = counters.graduationDayCount; // Update the counter
+                    graduateDateModifiedCount = counters.graduateDateModifiedCount; // Update the counter
+                    graduateDateFromStudentInfoCount = counters.graduateDateFromStudentInfoCount; // Update the counter
+                    graduateDateUnmodifiedCount = counters.graduateDateUnmodifiedCount; // Update the counter
+                    gradeEmptiedFromCustomerCount = counters.gradeEmptiedFromCustomerCount; // Update the counter
                     
                     // Add tag if needed
                     if (ADD_TAG_COLUMN) {
@@ -507,6 +1202,27 @@ async function processStudentData(inputFile) {
             processedCount += processedChunk.length;
             console.log(`   ✓ Processed ${processedCount}/${studentData.data.length} student records`);
             console.log(`   ✓ Incomplete records: ${incompleteCount}`);
+            console.log(`   ✓ Operate_type_id: ${historyOperateTypeCount} from history, ${fallbackOperateTypeCount} from fallback`);
+            console.log(`   ✓ Customer_Grade_Old_system__c populated: ${customerGradeCount} records`);
+            console.log(`   ✓ Graduation_Day__c populated: ${graduationDayCount} records`);
+            console.log(`   ✓ Graduate_date processing: ${graduateDateFromStudentInfoCount} from student_info, ${graduateDateModifiedCount} modified to end-of-month`);
+            console.log(`   ✓ Grade emptied from customer.csv: ${gradeEmptiedFromCustomerCount} records`);
+            
+            // Phone rule compliance progress
+            const totalPhoneRecordsProgress = phoneRuleStats.rule1_both_exist + phoneRuleStats.rule2_tel_only + phoneRuleStats.rule3_portable_only + phoneRuleStats.rule4_both_null;
+            const totalCompliantProgress = phoneRuleStats.rule1_compliant + phoneRuleStats.rule2_compliant + phoneRuleStats.rule3_compliant + phoneRuleStats.rule4_compliant;
+            const complianceRateProgress = totalPhoneRecordsProgress > 0 ? ((totalCompliantProgress / totalPhoneRecordsProgress) * 100).toFixed(1) : '0.0';
+            console.log(`   ✓ Phone rule compliance: ${totalCompliantProgress}/${totalPhoneRecordsProgress} (${complianceRateProgress}%)`);
+            
+            // Email rule compliance progress
+            const totalEmailRecordsProgress = emailRuleStats.rule1_both_exist + emailRuleStats.rule2_email_only + emailRuleStats.rule3_portable_only + emailRuleStats.rule4_both_null;
+            const totalEmailCompliantProgress = emailRuleStats.rule1_compliant + emailRuleStats.rule2_compliant + emailRuleStats.rule3_compliant + emailRuleStats.rule4_compliant;
+            const emailComplianceRateProgress = totalEmailRecordsProgress > 0 ? ((totalEmailCompliantProgress / totalEmailRecordsProgress) * 100).toFixed(1) : '0.0';
+            console.log(`   ✓ Email rule compliance: ${totalEmailCompliantProgress}/${totalEmailRecordsProgress} (${emailComplianceRateProgress}%)`);
+            console.log(`   ✓ Mapping stats: DM(${allMappingStats.dmSendable.mappings.size}) Sex(${allMappingStats.sex.mappings.size}) Grade(${allMappingStats.grade.mappings.size}) Course(${allMappingStats.courseType.mappings.size})`);
+            const originalIssues = dataQualityTracker.overallStats.original.emptyValues + dataQualityTracker.overallStats.original.nullValues + dataQualityTracker.overallStats.original.invalidValues;
+            const outputIssues = dataQualityTracker.overallStats.output.emptyValues + dataQualityTracker.overallStats.output.nullValues + dataQualityTracker.overallStats.output.invalidValues;
+            console.log(`   ✓ Data quality: ${dataQualityTracker.totalFields} fields, ${originalIssues}→${outputIssues} issues (fixed ${originalIssues - outputIssues})`);
             
             // Free memory
             processedChunk.length = 0;
@@ -532,7 +1248,80 @@ async function processStudentData(inputFile) {
         console.log(`Records with student_info data: ${studentInfoCount}`);
         console.log(`Records with customer data: ${customerInfoCount}`);
         console.log(`Incomplete records (written to ${incompleteFilename}): ${incompleteCount}`);
-        console.log(`Records with operate_type_id from history: ${historyOperateTypeCount}`);
+        console.log(`Records with Customer_Grade_Old_system__c populated: ${customerGradeCount}`);
+        console.log(`Records with Graduation_Day__c populated: ${graduationDayCount}`);
+        console.log(`Records with grade emptied from customer.csv: ${gradeEmptiedFromCustomerCount}`);
+        
+        // Graduate date manipulation summary  
+        console.log(`\n📅 Graduate Date Processing Summary:`);
+        console.log(`├── Total records with graduate_date from student_info.csv: ${graduateDateFromStudentInfoCount}`);
+        console.log(`├── Records with graduate_date modified to end-of-month (graduate_flg = 1): ${graduateDateModifiedCount}`);
+        console.log(`└── Records with graduate_date unchanged (graduate_flg = 0): ${graduateDateUnmodifiedCount}`);
+        
+        // Phone rule compliance summary
+        const totalPhoneRecords = phoneRuleStats.rule1_both_exist + phoneRuleStats.rule2_tel_only + phoneRuleStats.rule3_portable_only + phoneRuleStats.rule4_both_null;
+        const totalCompliantRecords = phoneRuleStats.rule1_compliant + phoneRuleStats.rule2_compliant + phoneRuleStats.rule3_compliant + phoneRuleStats.rule4_compliant;
+        const complianceRate = totalPhoneRecords > 0 ? ((totalCompliantRecords / totalPhoneRecords) * 100).toFixed(1) : '0.0';
+        
+        console.log(`\n📞 Phone Number Rule Compliance Summary:`);
+        console.log(`├── Total records processed: ${totalPhoneRecords}`);
+        console.log(`├── Compliant records: ${totalCompliantRecords} (${complianceRate}%)`);
+        console.log(`├── Rule 1 (both tel & portable_tel): ${phoneRuleStats.rule1_both_exist} total, ${phoneRuleStats.rule1_compliant} compliant, ${phoneRuleStats.rule1_non_compliant} non-compliant`);
+        console.log(`├── Rule 2 (tel only): ${phoneRuleStats.rule2_tel_only} total, ${phoneRuleStats.rule2_compliant} compliant, ${phoneRuleStats.rule2_non_compliant} non-compliant`);
+        console.log(`├── Rule 3 (portable_tel only): ${phoneRuleStats.rule3_portable_only} total, ${phoneRuleStats.rule3_compliant} compliant, ${phoneRuleStats.rule3_non_compliant} non-compliant`);
+        console.log(`└── Rule 4 (both NULL): ${phoneRuleStats.rule4_both_null} total, ${phoneRuleStats.rule4_compliant} compliant, ${phoneRuleStats.rule4_non_compliant} non-compliant`);
+        
+        // Email rule compliance summary
+        const totalEmailRecords = emailRuleStats.rule1_both_exist + emailRuleStats.rule2_email_only + emailRuleStats.rule3_portable_only + emailRuleStats.rule4_both_null;
+        const totalEmailCompliantRecords = emailRuleStats.rule1_compliant + emailRuleStats.rule2_compliant + emailRuleStats.rule3_compliant + emailRuleStats.rule4_compliant;
+        const emailComplianceRate = totalEmailRecords > 0 ? ((totalEmailCompliantRecords / totalEmailRecords) * 100).toFixed(1) : '0.0';
+        
+        console.log(`\n📧 Email Rule Compliance Summary:`);
+        console.log(`├── Total records processed: ${totalEmailRecords}`);
+        console.log(`├── Compliant records: ${totalEmailCompliantRecords} (${emailComplianceRate}%)`);
+        console.log(`├── Rule 1 (both email & portable_email): ${emailRuleStats.rule1_both_exist} total, ${emailRuleStats.rule1_compliant} compliant, ${emailRuleStats.rule1_non_compliant} non-compliant`);
+        console.log(`├── Rule 2 (email only): ${emailRuleStats.rule2_email_only} total, ${emailRuleStats.rule2_compliant} compliant, ${emailRuleStats.rule2_non_compliant} non-compliant`);
+        console.log(`├── Rule 3 (portable_email only): ${emailRuleStats.rule3_portable_only} total, ${emailRuleStats.rule3_compliant} compliant, ${emailRuleStats.rule3_non_compliant} non-compliant`);
+        console.log(`└── Rule 4 (both NULL): ${emailRuleStats.rule4_both_null} total, ${emailRuleStats.rule4_compliant} compliant, ${emailRuleStats.rule4_non_compliant} non-compliant`);
+        
+        // Detailed operate_type_id insights
+        console.log('\n📊 Operate Type ID Processing Statistics:');
+        console.log(`├── Records with operate_type_id from history: ${historyOperateTypeCount}`);
+        console.log(`├── Records using fallback logic (student_id first letter): ${fallbackOperateTypeCount}`);
+        
+        // Show detailed history mappings (Original -> Mapped -> Count)
+        if (operateTypeStats.historyMappings.mappings.size > 0) {
+            console.log('\n🔄 Operate Type ID History Statistics:');
+            displayMappingStats(operateTypeStats.historyMappings, 'Operate Type ID History', historyOperateTypeCount);
+        }
+        
+        // Show fallback assignments
+        console.log('\n🎯 Fallback Assignments (Student ID First Letter → Type → Count):');
+        console.log(`   ├── Student ID starts with '1' → '高認' → ${operateTypeStats.fallbackAssignments['高認']} records`);
+        console.log(`   ├── Student ID starts with '4' → '本科' → ${operateTypeStats.fallbackAssignments['本科']} records`);
+        console.log(`   └── Student ID starts with '5' → '' (empty) → ${operateTypeStats.fallbackAssignments['empty']} records`);
+        
+        // Show final mapped value summary
+        console.log('\n📈 Final Operate Type Distribution:');
+        Array.from(operateTypeStats.finalMappedValues.entries())
+            .sort(([,a], [,b]) => b - a) // Sort by count descending
+            .forEach(([mappedValue, count]) => {
+                const displayValue = mappedValue === '' ? '(empty)' : mappedValue;
+                const percentage = ((count / processedCount) * 100).toFixed(1);
+                console.log(`   ├── "${displayValue}" → ${count} records (${percentage}%)`);
+            });
+        
+        const totalOperateTypeProcessed = historyOperateTypeCount + fallbackOperateTypeCount;
+        console.log(`\n✅ Coverage: ${totalOperateTypeProcessed}/${processedCount} (${((totalOperateTypeProcessed/processedCount)*100).toFixed(1)}%) records have operate_type_id assigned`);
+        
+        // Show all mapping statistics using helper function
+        displayAllMappingStats(allMappingStats, processedCount);
+        
+        // Set total records for data quality tracker
+        dataQualityTracker.totalRecords = processedCount;
+        
+        // Show data quality statistics
+        displayDataQualityStats(dataQualityTracker, processedCount);
         
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
         console.log(`\nTotal execution time: ${duration} seconds`);
