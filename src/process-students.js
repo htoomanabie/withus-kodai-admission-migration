@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 import _ from 'lodash';
 import { fixNextLine } from './fix-line.js';
 import { maskData } from './mask-data.js';
+import { verifyMaskingIntegrity } from './verify-masking-integrity.js';
 
 // Import mappings and helper functions
 import {
@@ -322,6 +323,37 @@ function displayDataQualityStats(qualityTracker, processedCount) {
             console.log(`   ${symbol} ${item.column}: Fixed ${item.improvement} issues (${((item.improvement/item.originalIssues)*100).toFixed(1)}% improvement)`);
         });
     }
+}
+
+// Helper function to safely escape CSV values
+function escapeCSVValue(value) {
+    if (value === null || value === undefined) {
+        return '""';
+    }
+    
+    if (typeof value !== 'string') {
+        // For non-string values (numbers, booleans), convert to string first
+        return String(value);
+    }
+    
+    // Clean up malformed data from input CSV
+    let cleanedValue = value
+        // Remove any leading/trailing quotes that might cause issues
+        .replace(/^"+|"+$/g, '')
+        // Clean up excessive whitespace and special characters
+        .replace(/\s+/g, ' ')           // Normalize multiple spaces to single space
+        .trim();                        // Remove leading/trailing whitespace
+    
+    // Escape quotes, newlines, tabs, and carriage returns for CSV safety
+    const escapedValue = cleanedValue
+        .replace(/"/g, '""')      // Escape quotes (must be first)
+        .replace(/\r\n/g, ' ')    // Replace CRLF with space
+        .replace(/\n/g, ' ')      // Replace LF with space
+        .replace(/\r/g, ' ')      // Replace CR with space
+        .replace(/\t/g, ' ')      // Replace tabs with space
+        .replace(/　/g, ' ');     // Replace full-width spaces with regular space
+    
+    return `"${escapedValue}"`;
 }
 
 // Function to remove dashes from a string
@@ -1014,7 +1046,8 @@ async function processStudentData(inputFile) {
                                 'main_email': 'main_email',
                                 'sub_email': 'sub_email',
                                 'description': 'description',
-                                'grade': 'grade' // Add grade to the mapping
+                                'grade': 'grade', // Add grade to the mapping
+                                'Customer_Grade_Old_system__c': 'grade' // Map customer grade to Customer_Grade_Old_system__c
                             };
 
                             // Fill in null values from customer record
@@ -1045,6 +1078,12 @@ async function processStudentData(inputFile) {
                     // Ensure customer_id is set properly for incomplete records
                     if (customerId) {
                         incompleteRecord.customer_id = customerId;
+                        
+                        // Get customer data to populate Customer_Grade_Old_system__c even for incomplete records
+                        const customerRecord = customerMap.get(customerId);
+                        if (customerRecord && customerRecord.grade) {
+                            incompleteRecord.Customer_Grade_Old_system__c = customerRecord.grade;
+                        }
                     }
                     
                     // For incomplete records, no info comes from customer.csv or student_info.csv since no info was found
@@ -1179,7 +1218,7 @@ async function processStudentData(inputFile) {
                 const counter = currentCounter++;
                 return [counter, ...headers.slice(1).map(column => {
                     const value = record[column];
-                    return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : (value ?? '');
+                    return escapeCSVValue(value);
                 })].join(',');
             }).join('\n');
             
@@ -1187,7 +1226,7 @@ async function processStudentData(inputFile) {
                 const counter = currentCounter++;
                 return [counter, ...headers.slice(1).map(column => {
                     const value = record[column];
-                    return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : (value ?? '');
+                    return escapeCSVValue(value);
                 })].join(',');
             }).join('\n');
             
@@ -1414,6 +1453,28 @@ async function main() {
             console.log(`- Total records processed: ${result.totalRecords}`);
             console.log(`- Columns masked: ${result.maskedColumns.join(', ')}`);
             console.log(`- Output saved to: ${result.outputFile}`);
+            
+            // Step 4: Verify masking integrity
+            console.log('\n🔍 Verifying masking integrity...');
+            try {
+                const verificationSuccess = await verifyMaskingIntegrity(fixedFilename, result.outputFile);
+                
+                if (verificationSuccess) {
+                    console.log('\n🎉 MASKING VERIFICATION PASSED: No data loss detected!');
+                    console.log('✅ All sensitive data was properly masked while preserving data integrity.');
+                } else {
+                    console.log('\n⚠️ MASKING VERIFICATION FAILED: Data integrity issues detected!');
+                    console.log('❌ Please review the verification report above before using the masked data.');
+                    console.log(`   Before file: ${fixedFilename}`);
+                    console.log(`   After file: ${result.outputFile}`);
+                    console.log('\n💡 You can re-run verification manually with:');
+                    console.log(`   node verify-masking-integrity.js "${fixedFilename}" "${result.outputFile}"`);
+                }
+            } catch (verificationError) {
+                console.log('\n⚠️ Could not verify masking integrity:', verificationError.message);
+                console.log('💡 You can verify manually with:');
+                console.log(`   node verify-masking-integrity.js "${fixedFilename}" "${result.outputFile}"`);
+            }
         } else {
             console.log('\nSkipping data masking (use --mask flag to enable)');
         }
