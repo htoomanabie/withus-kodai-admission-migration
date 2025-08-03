@@ -738,11 +738,8 @@ function filterColumns(record, mappingStats = {}, dataQualityTracker = null, cou
             if (gradeFromCustomer && record.grade) {
                 // Use the original grade value before transformation
                 const originalGradeValue = record.grade;
-                value = transformGrade(originalGradeValue);
-                // Set empty grade values to '-'
-                if (!value || (typeof value === 'string' && value.trim() === '') || value === '卒業') {
-                    value = '-';
-                }
+                value = originalGradeValue;
+                
                 // Increment counter for populated Customer_Grade_Old_system__c
                 if (counters && counters.customerGradeCount !== undefined) {
                     counters.customerGradeCount++;

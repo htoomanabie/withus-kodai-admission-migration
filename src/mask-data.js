@@ -136,7 +136,7 @@ function maskEmail(email) {
     } else if (username.length <= 3) {
         maskedUsername = username.charAt(0) + generateRandomChars(username.length - 1);
     } else {
-        maskedUsername = username.substring(0, 2) + generateRandomChars(username.length - 2);
+        maskedUsername = username.substring(0, 3) + generateRandomChars(username.length - 2);
     }
     
     return `${maskedUsername}@${PLACEHOLDER_DOMAIN}`;

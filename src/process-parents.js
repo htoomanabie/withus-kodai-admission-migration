@@ -322,8 +322,8 @@ function verifyPhoneNumberLogic(record, derivedPhones, counters) {
     // Rule 1: tel is not NULL AND portable_tel is not NULL → portable_tel is Phone and tel is Other Phone
     if (telIsNotNull && portableTelIsNotNull) {
         counters.phoneRuleStats.rule1_both_exist++;
-        const expectedPhone = removeDashes(portableTel);
-        const expectedOtherPhone = removeDashes(tel);
+        const expectedPhone = processPhoneNumber(portableTel);
+        const expectedOtherPhone = processPhoneNumber(tel);
         if (finalPhone === expectedPhone && finalOtherPhone === expectedOtherPhone) {
             counters.phoneRuleStats.rule1_compliant++;
         } else {
@@ -333,7 +333,7 @@ function verifyPhoneNumberLogic(record, derivedPhones, counters) {
     // Rule 2: tel is not NULL AND portable_tel is NULL → tel is Phone
     else if (telIsNotNull && !portableTelIsNotNull) {
         counters.phoneRuleStats.rule2_tel_only++;
-        const expectedPhone = removeDashes(tel);
+        const expectedPhone = processPhoneNumber(tel);
         if (finalPhone === expectedPhone && (finalOtherPhone === null || finalOtherPhone === '')) {
             counters.phoneRuleStats.rule2_compliant++;
         } else {
@@ -343,7 +343,7 @@ function verifyPhoneNumberLogic(record, derivedPhones, counters) {
     // Rule 3: tel is NULL AND portable_tel is not NULL → portable_tel is Phone
     else if (!telIsNotNull && portableTelIsNotNull) {
         counters.phoneRuleStats.rule3_portable_only++;
-        const expectedPhone = removeDashes(portableTel);
+        const expectedPhone = processPhoneNumber(portableTel);
         if (finalPhone === expectedPhone && (finalOtherPhone === null || finalOtherPhone === '')) {
             counters.phoneRuleStats.rule3_compliant++;
         } else {
@@ -506,7 +506,33 @@ const REQUIRED_COLUMNS = [
     'tag'
 ];
 
-// Function to remove dashes from a string
+// Function to process phone numbers according to business requirements
+function processPhoneNumber(phoneValue) {
+    if (!phoneValue) return phoneValue;
+    
+    // Convert to string to preserve leading zeros
+    let phoneStr = String(phoneValue);
+    
+    // Remove all special characters (keep only digits)
+    const digitsOnly = phoneStr.replace(/[^\d]/g, '');
+    
+    // If no digits found, return empty string
+    if (!digitsOnly) return '';
+    
+    // Handle length requirements
+    if (digitsOnly.length < 7) {
+        // If less than 7 characters, add leading zeros to make it 7
+        return digitsOnly.padStart(7, '0');
+    } else if (digitsOnly.length > 20) {
+        // If more than 20 characters, take only first 20
+        return digitsOnly.substring(0, 20);
+    } else {
+        // Length is between 7-20, return as-is
+        return digitsOnly;
+    }
+}
+
+// Function to remove dashes from a string (used for zip codes and general purposes)
 function removeDashes(str) {
     if (!str) return str;
     return String(str).replace(/-/g, '');
@@ -566,24 +592,24 @@ function derivePhoneNumbers(record) {
 
     // Both numbers exist
     if (hasTel && hasPortableTel) {
-        phone = removeDashes(portableTel);
-        otherPhone = removeDashes(tel);
+        phone = processPhoneNumber(portableTel);
+        otherPhone = processPhoneNumber(tel);
     }
     // Only tel exists
     else if (hasTel) {
-        phone = removeDashes(tel);
+        phone = processPhoneNumber(tel);
     }
     // Only portable_tel exists
     else if (hasPortableTel) {
-        phone = removeDashes(portableTel);
+        phone = processPhoneNumber(portableTel);
     }
     // Check if phone or other_phone already exist
     else {
         if (record.phone !== undefined && record.phone !== null && record.phone !== '') {
-            phone = record.phone;
+            phone = processPhoneNumber(record.phone);
         }
         if (record.other_phone !== undefined && record.other_phone !== null && record.other_phone !== '') {
-            otherPhone = record.other_phone;
+            otherPhone = processPhoneNumber(record.other_phone);
         }
     }
 
