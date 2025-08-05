@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import Papa from 'papaparse';
 import _ from 'lodash';
 import { createReadStream, createWriteStream } from 'fs';
-import { transformOperateType, transformReceiverBranchId } from './student-mappings.js';
+import { transformOperateType, transformReceiverBranchId, transformBranchId } from './student-mappings.js';
 
 // Define the mappings
 // Mapping for inquiry target type (relationship)

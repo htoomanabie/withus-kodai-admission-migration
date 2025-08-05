@@ -1,3 +1,8 @@
+import { promises as fs } from 'fs';
+import Papa from 'papaparse';
+import _ from 'lodash';
+import { createReadStream, createWriteStream } from 'fs';
+
 // Function to clean text (remove line breaks, normalize whitespace)
 function cleanText(value) {
     if (typeof value === 'string') {
@@ -83,22 +88,30 @@ function formatTime(timeValue) {
 const CONTACT_TYPE_MAPPING = {
     '1': '訪問',
     '2': '電話'
-};// Transform contact_type values
+};
+
+// Transform contact_type values
 function transformContactType(value) {
     const strValue = String(value);
     return CONTACT_TYPE_MAPPING[strValue] || value;
-}// Define the mapping for rank
+}
+
+// Define the mapping for rank
 const RANK_MAPPING = {
     '1': 'Ｓ',
     '2': 'A',
     '3': 'B',
     '4': 'C',
     '5': 'D'
-};// Transform rank values
+};
+
+// Transform rank values
 function transformRank(value) {
     const strValue = String(value);
     return RANK_MAPPING[strValue] || value;
-}// Define the required columns for the input
+}
+
+// Define the required columns for the input
 const INPUT_COLUMNS = [
     'school_contact_id',
     'staff_ids',
@@ -111,43 +124,23 @@ const INPUT_COLUMNS = [
     'contact_purpose_id',
     'rank',
     'comment'
-];import { promises as fs } from 'fs';
-import Papa from 'papaparse';
-import _ from 'lodash';
-import { createReadStream, createWriteStream } from 'fs';
+];
 
-// Define the mappings for contact_purpose_id based on contact_type
 const CONTACT_PURPOSE_MAPPING_A = {
-    // Original mappings
-    '1': '新年度挨拶',
-    '2': '新入生状況報告',
-    '3': 'OS・学校説明会案内',
-    '4': 'クラス数･担任等の把握',
-    '5': '転編入受入案内',
-    '6': '教育活動報告',
-    '7': 'パンフ･募集要項配布',
-    '8': '入試案内',
-    '9': '生徒状況報告',
-    '10': '新規開拓訪問',
-    '11': 'トライアルプログラム案内',
-    '12': '進路決定報告',
-    '13': 'ステップアッププログラム案内',
-    '14': '新年挨拶',
-    '15': 'OS参加報告',
-    '16': '追加募集案内',
-    '17': 'トライアルプログラム参加報告',
-    '18': '在校生同行訪問',
-    '19': '卒業生同行訪問',
-    '20': '在校生単独訪問（ジョブシャドウ）',
-    '21': '四者面談',
-    '22': '専攻科・専門カレッジ　保育案内',
-    '23': '専攻科・専門カレッジ　社会人基礎力案内',
-    '24': '専攻科・専門カレッジ　介護案内',
-    '25': '高認予備校案内',
-    '26': '高認認知促進活動',
-    '27': '情報モラル関係',
-    
-    // New additional mappings
+    '14': '新年度挨拶',
+    '15': '新入生状況報告',
+    '16': 'OS・学校説明会案内',
+    '17': 'クラス数･担任等の把握',
+    '18': '転編入受入案内',
+    '19': '教育活動報告',
+    '20': 'パンフ･募集要項配布',
+    '21': '入試案内',
+    '22': '生徒状況報告',
+    '23': '新規開拓訪問',
+    '24': 'トライアルプログラム案内',
+    '25': '進路決定報告',
+    '26': 'ステップアッププログラム案内',
+    '27': '新年挨拶',
     '28': 'OS参加報告',
     '29': '追加募集案内',
     '30': 'トライアルプログラム参加報告',
@@ -161,36 +154,9 @@ const CONTACT_PURPOSE_MAPPING_A = {
     '61': '高認予備校案内',
     '62': '高認認知促進活動',
     '68': '情報モラル関係'
-};
+  };
 
 const CONTACT_PURPOSE_MAPPING_B = {
-    // Original mappings
-    '1': '新年度挨拶',
-    '2': '新入生状況報告',
-    '3': 'OS・学校説明会案内',
-    '4': 'クラス数･担任等の把握',
-    '5': '転編入受入案内',
-    '6': '教育活動報告',
-    '7': '募集要項配布',
-    '8': '入試案内',
-    '9': '生徒状況報告',
-    '10': '新規開拓訪問',
-    '11': 'トライアルプログラム案内',
-    '12': '進路決定報告',
-    '13': 'ステップアッププログラム案内',
-    '14': '新年挨拶',
-    '15': 'OS参加報告',
-    '16': '追加募集案内',
-    '17': 'トライアルプログラム参加報告',
-    '18': '訪問アポイント',
-    '19': '四者面談依頼',
-    '20': '専攻科・専門カレッジ　保育案内',
-    '21': '専攻科・専門カレッジ　社会人基礎力案内',
-    '22': '専攻科・専門カレッジ　介護案内',
-    '23': '高認予備校案内',
-    '24': '高認認知促進活動',
-    
-    // New additional mappings
     '33': '新年度挨拶',
     '34': '新入生状況報告',
     '35': 'OS・学校説明会案内',
@@ -215,7 +181,7 @@ const CONTACT_PURPOSE_MAPPING_B = {
     '65': '専攻科・専門カレッジ　介護案内',
     '66': '高認予備校案内',
     '67': '高認認知促進活動'
-};
+  };
 
 // Define the columns for the output (with staff_ids and contact_person_ids split into 4 columns each)
 const OUTPUT_COLUMNS = [
@@ -303,44 +269,48 @@ async function processSchoolContactFile() {
         outputStream.write(headerRow);
         
         return new Promise((resolve, reject) => {
-            let isFirstRow = true;
             let columnIndices = {};
             let processedCount = 0;
             
-            const parser = Papa.parse(createReadStream('school_contact.csv'), {
-                header: false, // Process headers manually
+            const inputStream = createReadStream('./school_contact.csv');
+            inputStream.on('error', (error) => {
+                console.error('Error reading input file:', error);
+                reject(error);
+            });
+            
+            const parser = Papa.parse(inputStream, {
+                header: false,
                 skipEmptyLines: true,
-                chunk: function(results) {
+                encoding: 'utf8',
+                complete: function(results) {
                     try {
                         const data = results.data;
+                        console.log('Total rows:', data.length);
                         
-                        // Handle header row
-                        if (isFirstRow) {
-                            isFirstRow = false;
-                            
-                            // Map column names to indices
-                            data[0].forEach((header, index) => {
-                                // Enhanced header cleaning
-                                let cleanHeader = header;
-                                // Remove all types of quotes and whitespace
-                                cleanHeader = cleanHeader.replace(/^["']|["']$/g, '')  // Remove outer quotes
-                                    .replace(/\\"/g, '"')  // Handle escaped quotes
-                                    .trim()
-                                    .toLowerCase();
-                                
-                                // Special handling for school_contact_id - it's the first column
-                                if (index === 0) {
-                                    columnIndices['school_contact_id'] = index;
-                                } else {
-                                    columnIndices[cleanHeader] = index;
-                                }
-                            });
-                            
-                            return; // Skip processing header row
+                        if (data.length < 2) {
+                            console.error('No data rows found');
+                            return;
                         }
                         
-                                                    // Process each data row
-                        for (let i = 0; i < data.length; i++) {
+                        // Process header row
+                        const headers = data[0];
+                        console.log('Headers:', headers);
+                        
+                        // Map column names to indices
+                        headers.forEach((header, index) => {
+                            let cleanHeader = header.replace(/^["']|["']$/g, '').trim();
+                            if (index === 0) {
+                                cleanHeader = cleanHeader.replace(/^\uFEFF/, '');
+                                // Special handling for school_contact_id column
+                                cleanHeader = 'school_contact_id';
+                            }
+                            columnIndices[cleanHeader] = index;
+                        });
+                        
+                        console.log('Column indices:', columnIndices);
+                        
+                        // Process data rows
+                        for (let i = 1; i < data.length; i++) {
                             const row = data[i];
                             if (!row || row.length === 0) continue;
                             
@@ -442,25 +412,26 @@ async function processSchoolContactFile() {
                                 console.log(`   Processed ${processedCount} school contact records...`);
                             }
                         }
+                        
+                        outputStream.end();
+                        
+                        // Final progress report
+                        console.log(`   ✓ Completed processing ${processedCount} school contact records`);
+                        
+                        console.log('\nFinal Summary:');
+                        console.log('-------------');
+                        console.log(`Total processed records in final output: ${processedCount}`);
+                        console.log(`Output file: ${finalFilename}`);
+                        console.log('\nProcess completed successfully! ✨');
+                        
+                        resolve(finalFilename);
                     } catch (error) {
-                        console.error(`Error processing chunk: ${error.message}`);
+                        console.error('Error processing data:', error);
+                        reject(error);
                     }
                 },
-                complete: function() {
-                    outputStream.end();
-                    
-                    // Final progress report
-                    console.log(`   ✓ Completed processing ${processedCount} school contact records`);
-                    
-                    console.log('\nFinal Summary:');
-                    console.log('-------------');
-                    console.log(`Total processed records in final output: ${processedCount}`);
-                    console.log(`Output file: ${finalFilename}`);
-                    console.log('\nProcess completed successfully! ✨');
-                    
-                    resolve(finalFilename);
-                },
                 error: function(error) {
+                    console.error('Error parsing CSV:', error);
                     outputStream.end();
                     reject(error);
                 }

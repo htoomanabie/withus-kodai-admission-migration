@@ -21,7 +21,7 @@ const COLUMN_HEADER_MAPPING = {
     'contact_person_id': 'School_Staff_External_Id__c',
     'name1': 'LastName',
     'name2': 'FirstName',
-    'post': 'Role__c',
+    'post': 'School_Staff_Role__c',
     'leaved': 'Active__c',
     'class_name': 'Description',
     'school_id': 'MANAERP__Current_School__r:MANAERP__School__c:MANAERP__School_Partner_Id__c'
