@@ -1,0 +1,27 @@
+{
+  "originalFile": "/Users/htoomaung/Repository/withus-kodai-admission-migration/final_migration/output/processed_student_data_fixed.csv",
+  "totalRows": 298139,
+  "numFiles": 3,
+  "rowsPerFile": 100000,
+  "files": [
+    {
+      "fileName": "processed_student_data_fixed_08-05-2025 14-26_1.csv",
+      "rowCount": 100000,
+      "startRow": 1,
+      "endRow": 100000
+    },
+    {
+      "fileName": "processed_student_data_fixed_08-05-2025 14-26_2.csv",
+      "rowCount": 100000,
+      "startRow": 100001,
+      "endRow": 200000
+    },
+    {
+      "fileName": "processed_student_data_fixed_08-05-2025 14-26_3.csv",
+      "rowCount": 98139,
+      "startRow": 200001,
+      "endRow": 298139
+    }
+  ],
+  "timestamp": "2025-08-05T06:26:36.452Z"
+}

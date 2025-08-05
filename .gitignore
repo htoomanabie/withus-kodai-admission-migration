@@ -7,3 +7,6 @@
 /src/node_modules
 /src/package-lock.json
 /.sfdx
+
+/final_migration/node_modules
+/final_migration/package-lock.json

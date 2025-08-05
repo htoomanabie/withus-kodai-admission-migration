@@ -1,0 +1,13 @@
+{
+  "name": "withus-kodai-data-migration",
+  "version": "1.0.0",
+  "description": "",
+  "main": "process-student.js",
+  "type": "module",
+  "dependencies": {
+    "csv-parse": "^5.5.3",
+    "csv-stringify": "^6.4.5",
+    "papaparse": "^5.4.1",
+    "lodash": "^4.17.21"
+  }
+}
